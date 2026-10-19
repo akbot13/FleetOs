@@ -11,10 +11,15 @@
  * IMPORTANT: Requires ADMIN_PASSWORD env var (set in .env or CI secrets)
  */
 
+import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL   = 'https://vplydlocixunrnjlftbk.supabase.co';
-const SUPABASE_ANON  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZwbHlkbG9jaXh1bnJuamxmdGJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNTMzMjcsImV4cCI6MjA4ODcyOTMyN30.tIF8B8Ckl3lzD_9IDaBLl24RFaGpAPux1Gz2gqHZ2tc';
+const SUPABASE_URL   = process.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON  = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON) {
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY. Set them in your .env file.');
+}
 const ADMIN_EMAIL    = 'shivamjindal076@gmail.com';
 const ADMIN_PASS     = process.env.ADMIN_PASSWORD || 'your_password_here';
 const ANIL_CABS_ORG  = 'a0000000-0000-0000-0000-000000000001';

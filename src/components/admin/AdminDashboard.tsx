@@ -523,7 +523,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                 <Calendar className="h-4 w-4 text-secondary" /> Scheduled Today
               </h3>
               <div className="space-y-2">
-                {scheduledToday.filter(b => b.scheduled_at?.startsWith(today)).map((booking) => (
+                {scheduledToday.map((booking) => (
                   <Card
                     key={booking.id}
                     className="p-4 shadow-card rounded-xl cursor-pointer"

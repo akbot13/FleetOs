@@ -27,7 +27,7 @@ useEffect(() => {
     const parsed = JSON.parse(savedDriver);
 
     // Always fetch fresh status from Supabase — admin may have approved/rejected
-    supabase
+    (supabase as any)
       .from('drivers')
       .select('*')
       .eq('id', parsed.id)

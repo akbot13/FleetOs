@@ -11,12 +11,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
-import { useMyDriverProfile, useTodayHandover, SupabaseBooking } from '@/hooks/useSupabaseData';
+import { useMyDriverProfile, useTodayHandover, SupabaseBooking, SupabaseDriver } from '@/hooks/useSupabaseData';
 import { useOrg } from '@/hooks/useOrg';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { olaDirections, olaGeocode, useOlaMaps } from '@/lib/olaMaps';
 import { queueFeedbackMessage, queueInvoiceMessage } from '@/lib/customerAutomation';
+import { toast } from 'sonner';
 
 // â”€â”€â”€ TYPES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -331,9 +332,6 @@ function ExpenseTracker({
   todayHandover: { amount: number; handed_over_at: string } | null;
   onHandOver: (amount: number) => Promise<void>;
   handoverLoading: boolean;
-  lastHandoverId: number | null;
-  handoverDoneAt: Date | null;
-  onUndoHandover: () => Promise<void>;
 }) {
   const [addingExpense, setAddingExpense] = useState(false);
   const [addingCollection, setAddingCollection] = useState(false);
@@ -739,7 +737,7 @@ function DriverTripMap({
   );
 }
 
-interface DriverAppProps { driver?: { id: number; name: string; status: string } | null }
+interface DriverAppProps { driver?: (Pick<SupabaseDriver,'id'|'name'|'status'> & Partial<SupabaseDriver>) | null }
 
 export function DriverApp({ driver }: DriverAppProps) {
   const [screen, setScreen] = useState<DriverScreen>('home');
@@ -759,8 +757,6 @@ export function DriverApp({ driver }: DriverAppProps) {
   const [bannerTrips, setBannerTrips] = useState<string[]>([]);
   const [alarmTrips, setAlarmTrips] = useState<string[]>([]);
   const [detailTrip, setDetailTrip] = useState<ScheduledTrip | null>(null);
-  const [lastHandoverId, setLastHandoverId] = useState<number | null>(null);
-  const [handoverDoneAt, setHandoverDoneAt] = useState<Date | null>(null);
   const [driverPosition, setDriverPosition] = useState<{ lat: number; lng: number; updatedAt: string } | null>(null);
   const lastPublishedLocationRef = useRef<{ lat: number; lng: number; publishedAt: number } | null>(null);
   const lastSyncedStatusRef = useRef<string | null>(null);
@@ -775,7 +771,7 @@ export function DriverApp({ driver }: DriverAppProps) {
     queryKey: ['driver-trips', myProfile?.id, org?.id],
     queryFn: async () => {
       if (!myProfile?.id || !org?.id) return [];
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('bookings')
         .select('*')
         .eq('org_id', org.id)
@@ -1424,7 +1420,7 @@ export function DriverApp({ driver }: DriverAppProps) {
                 <button
                   onClick={() => {
                     if (sortedTrips.length > 0) { setAlarmTrip(sortedTrips[0]); }
-                    else { setAlarmTrip({ id: 'demo', customerName: 'Demo Customer', customerPhone: '', pickup: 'C-Scheme, Jaipur', drop: 'Malviya Nagar, Jaipur', fare: 180, distance: '6.2 km', scheduledAt: new Date(Date.now() + 30 * 60000).toISOString(), tripType: 'city', status: 'pending_confirm' }); }
+                    else { setAlarmTrip({ id: 'demo', customerName: 'Demo Customer', customerPhone: '', pickup: 'C-Scheme, Jaipur', drop: 'Malviya Nagar, Jaipur', fare: 180, distance: '6.2 km', scheduledAt: new Date(Date.now() + 30 * 60000).toISOString(), notes: '', tripType: 'city', status: 'pending_confirm' }); }
                   }}
                   className="text-xs px-3 py-2 rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/30 font-bold active:scale-95 transition-all"
                 >

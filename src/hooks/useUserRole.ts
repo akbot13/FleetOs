@@ -18,7 +18,7 @@ export function useUserRole() {
       const roles = (data ?? []).map(r => r.role);
       return {
         isAdmin:  roles.includes('admin'),
-        isDriver: roles.includes('driver'),
+        isDriver: (roles as string[]).includes('driver'),
       };
     },
     enabled: !!user,
