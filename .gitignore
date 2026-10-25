@@ -36,3 +36,6 @@ dist-ssr
 playwright-report/
 test-results/
 .playwright-artifacts*/
+
+# Supabase CLI scratch files
+supabase/.temp/
