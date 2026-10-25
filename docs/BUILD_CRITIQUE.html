@@ -1,0 +1,324 @@
+<title>FleetOs Build Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column, wide tables scroll inside their own frames; severity is shown by a chip on every row. */
+:root {
+  --bg: #f7f7f5; --surface: #ffffff; --fg: #1d2330; --muted: #5b6372; --line: #dfe1e5;
+  --accent: #b35c00; --accent-soft: #fbeedd;
+  --crit: #b4232c; --crit-soft: #fbe4e5; --high: #a35200; --high-soft: #fdeedb;
+  --med: #6b5d00; --med-soft: #f5f0cf; --low: #36606f; --low-soft: #e2eef2; --ok: #1f7a4a; --ok-soft: #dff2e7;
+  --display: "Source Serif 4", Georgia, serif; --body: "Public Sans", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #14171d; --surface: #1b1f27; --fg: #e6e8ec; --muted: #9aa2b1; --line: #2d333e;
+  --accent: #f0a04b; --accent-soft: #3a2a17;
+  --crit: #ff7b82; --crit-soft: #3d1c20; --high: #f5a656; --high-soft: #3a2914;
+  --med: #e2cf5c; --med-soft: #33300f; --low: #8cc3d6; --low-soft: #1b2e35; --ok: #6fd39c; --ok-soft: #173326; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #14171d; --surface: #1b1f27; --fg: #e6e8ec; --muted: #9aa2b1; --line: #2d333e;
+  --accent: #f0a04b; --accent-soft: #3a2a17;
+  --crit: #ff7b82; --crit-soft: #3d1c20; --high: #f5a656; --high-soft: #3a2914;
+  --med: #e2cf5c; --med-soft: #33300f; --low: #8cc3d6; --low-soft: #1b2e35; --ok: #6fd39c; --ok-soft: #173326; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body); }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 48px; }
+header { display: grid; gap: 10px; }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: 2.3rem; }
+h2 { font-size: 1.55rem; padding-bottom: 8px; border-bottom: 2px solid var(--fg); }
+h3 { font-size: 1.1rem; }
+p { margin: 0; max-width: 68ch; }
+.lede { font-size: 1.05rem; color: var(--muted); }
+section { display: grid; gap: 18px; min-width: 0; }
+nav { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; }
+nav a, a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.verdict { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--crit); padding: 18px 20px; display: grid; gap: 10px; border-radius: 4px; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.cols > div { display: grid; gap: 6px; align-content: start; min-width: 0; }
+ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.frame { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font: 600 11.5px/1.3 var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); background: var(--bg); position: sticky; top: 0; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; white-space: nowrap; }
+code, .id { font-family: var(--mono); font-size: 12.5px; }
+.id { white-space: nowrap; color: var(--muted); }
+.chip { display: inline-block; font: 600 11px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase; padding: 4px 7px; border-radius: 3px; white-space: nowrap; }
+.crit { color: var(--crit); background: var(--crit-soft); } .high { color: var(--high); background: var(--high-soft); }
+.med { color: var(--med); background: var(--med-soft); } .low { color: var(--low); background: var(--low-soft); }
+.ok { color: var(--ok); background: var(--ok-soft); }
+tr.cp td { background: var(--accent-soft); }
+.note { font-size: 13.5px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+pre.mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 16px; overflow-x: auto; margin: 0; }
+.uc-actor { display: grid; gap: 10px; }
+@media (max-width: 560px) { h1 { font-size: 1.8rem; } }
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">Review · 25 Oct 2026 · branch must-fixes-2026-10-25</span>
+  <h1>FleetOs Build Review</h1>
+  <p class="lede">A critique of the current build for Anil Cabs, with the blockers to a paid pilot, a ranked issue register, a PERT schedule to go-live, the constraints the project works within, and every way each kind of user can use the product today.</p>
+  <nav>
+    <a href="#critique">Critique</a><a href="#blockers">Blockers</a><a href="#issues">Issue register</a><a href="#pert">PERT chart</a><a href="#constraints">Constraints</a><a href="#usecases">Use cases</a>
+  </nav>
+</header>
+
+<section id="critique">
+  <h2>Critique</h2>
+  <div class="verdict">
+    <h3>Verdict: not ready for real customers yet. Ready for a supervised internal trial.</h3>
+    <p>The admin and driver surfaces work end to end against the live database, and the tenant isolation done this week holds (17 of 17 database checks pass). Three holes found during this review let a customer or a driver change money; all three were closed and verified on the live database the same day. The remaining blockers are below.</p>
+  </div>
+  <div class="cols">
+    <div>
+      <h3>What is solid</h3>
+      <ul>
+        <li>Customers book through two server functions and get a private tracking link, so customer data is no longer readable by anyone with the public key.</li>
+        <li>Driver PINs are hashed, never readable, and lock after five wrong tries for 15 minutes.</li>
+        <li>Dispatch ranks drivers by real distance from the pickup and never invents one when GPS is missing. Covered by unit tests.</li>
+        <li>Cash maths (hand-over, net earnings, paise rounding) lives in one tested function.</li>
+        <li>The driver app was split from one 1,900-line file into nine files by job. 34 unused UI components and 27 packages are gone.</li>
+        <li><code>npm run db:check</code> catches a missing migration on the live database in seconds.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>What is weak</h3>
+      <ul>
+        <li><strong>The database trusts the client with money.</strong> The customer's browser sends the fare; drivers can edit any column of their own trips and their own driver record, including approval status.</li>
+        <li><strong>Several screens look real but are not.</strong> Customer trip tracking is a static mock, the admin Pricing screen's Save button saves nothing, and customer fares are hard-coded in two files.</li>
+        <li><strong>Nothing protects main.</strong> No CI, 57 lint errors, and the end-to-end tests still script the old OTP sign-in, so they fail.</li>
+        <li><strong>Work is not landed.</strong> 51 changed files sit uncommitted and the branch is 4 commits ahead of main, which is what Vercel deploys.</li>
+        <li><strong>No one is told anything.</strong> SMS and WhatsApp sending is wired to an edge function but no provider is live.</li>
+        <li><code>DriverApp.tsx</code> is still 887 lines and <code>AdminDashboard.tsx</code> over 1,000.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="blockers">
+  <h2>Blockers</h2>
+  <p>Each blocker stops a paid pilot with real customers. The first three were confirmed by reading the live migrations during this review.</p>
+  <div class="frame"><table>
+    <thead><tr><th>ID</th><th>Blocker</th><th>How it fails</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr><td class="id">B1</td><td><span class="chip ok">Fixed</span><br>Customer sets their own fare</td><td><code>create_customer_booking</code> copies <code>fare</code> from the request. Anyone can book an airport run at ₹1 with one HTTP call.</td><td>Done: <code>quote_fare()</code> computes it from <code>org_pricing</code>; the request's fare is ignored. Verified live: a ₹1 airport request saved at ₹450.</td></tr>
+      <tr><td class="id">B2</td><td><span class="chip ok">Fixed</span><br>Pending driver can approve themself</td><td>Policy <code>driver_update_own</code> allows any column on the driver's own row, so a driver can set <code>status</code> from <code>pending_approval</code> to <code>free</code>, or change <code>org_id</code>.</td><td>Done: a trigger limits drivers to duty status, location and odometer photos, and blocks leaving <code>pending_approval</code>.</td></tr>
+      <tr><td class="id">B3</td><td><span class="chip ok">Fixed</span><br>Driver can rewrite trip fare and payment</td><td>Policy <code>driver_update_own_trips</code> allows any column on their bookings: fare, payment status, customer phone.</td><td>Done: a trigger limits drivers to trip progress, collection and odometer columns. Admins are unaffected.</td></tr>
+      <tr><td class="id">B4</td><td><span class="chip high">High</span><br>Odometer photos likely public</td><td>The <code>odometer-photos</code> bucket is used with public URLs and no migration defines its access rules.</td><td>Make the bucket private, add storage policies by driver and org, serve signed URLs.</td></tr>
+      <tr><td class="id">B5</td><td><span class="chip high">High</span><br>Fares and pricing are fake</td><td>Customer fares are constants in <code>BookingSummary.tsx</code> and <code>ScheduleRideFlow.tsx</code>; the Pricing screen does not persist.</td><td>Read and save <code>org_pricing</code>; one fare function shared by client display and server.</td></tr>
+      <tr><td class="id">B6</td><td><span class="chip high">High</span><br>No live cab tracking for customers</td><td>The booking screen polls status and shows the assigned driver, but no map or ETA. <code>CityTracking</code>, <code>IntercityTracking</code>, <code>ScheduleRideFlow</code> and <code>BookNowFlow</code> are unused mock files.</td><td>Delete the unused files; add the driver's location to <code>get_booking_status</code> and show it on a map.</td></tr>
+      <tr><td class="id">B7</td><td><span class="chip high">High</span><br>Production is behind the code</td><td>Vercel builds <code>main</code>; the fixes are on a branch with 51 uncommitted files. Migrations are not in the CLI history.</td><td>Commit, run <code>supabase migration repair</code>, merge, deploy.</td></tr>
+      <tr><td class="id">B8</td><td><span class="chip high">High</span><br>No safety net</td><td>No CI; e2e specs are stale; 57 lint errors hide new ones.</td><td>Update Playwright to the PIN flow, zero lint, a GitHub Actions workflow on every PR.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="issues">
+  <h2>Issue register</h2>
+  <p>Ranked by severity, then by how cheap the fix is. Owner is the role, since the team is one developer plus Claude. Status is as of today.</p>
+  <div class="legend"><span class="chip crit">Critical</span> money or data exposure <span class="chip high">High</span> blocks pilot <span class="chip med">Medium</span> blocks go-live <span class="chip low">Low</span> quality</div>
+  <div class="frame"><table>
+    <thead><tr><th>ID</th><th>Sev</th><th>Issue</th><th>Area</th><th>Owner</th><th class="num">Effort</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="id">FO-01</td><td><span class="chip crit">Crit</span></td><td>Customer-supplied fare accepted (B1)</td><td>Database</td><td>Dev</td><td class="num">2 d</td><td>Fixed, live</td></tr>
+      <tr><td class="id">FO-02</td><td><span class="chip crit">Crit</span></td><td>Driver can self-approve or move org (B2)</td><td>Database</td><td>Dev</td><td class="num">1 d</td><td>Fixed, live</td></tr>
+      <tr><td class="id">FO-03</td><td><span class="chip crit">Crit</span></td><td>Driver can edit fare and payment on own trips (B3)</td><td>Database</td><td>Dev</td><td class="num">1 d</td><td>Fixed, live</td></tr>
+      <tr><td class="id">FO-04</td><td><span class="chip high">High</span></td><td>Odometer photo bucket has no access rules (B4)</td><td>Storage</td><td>Dev</td><td class="num">1 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-05</td><td><span class="chip high">High</span></td><td>Hard-coded fares; Pricing screen saves nothing (B5)</td><td>Customer, Admin</td><td>Dev</td><td class="num">2 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-06</td><td><span class="chip high">High</span></td><td>No live map or ETA for customers; four unused mock screens (B6)</td><td>Customer</td><td>Dev</td><td class="num">2 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-07</td><td><span class="chip high">High</span></td><td>51 files uncommitted; branch not merged; migration history unrecorded (B7)</td><td>Release</td><td>Dev</td><td class="num">0.5 d</td><td>Waiting on go-ahead</td></tr>
+      <tr><td class="id">FO-08</td><td><span class="chip high">High</span></td><td>Playwright specs use old OTP flow; no CI (B8)</td><td>Testing</td><td>Dev</td><td class="num">3 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-09</td><td><span class="chip high">High</span></td><td>DEMO bookings (Priya, Rohan, RLS Test) still in live data</td><td>Data</td><td>Operator</td><td class="num">0.5 d</td><td>SQL given, not confirmed run</td></tr>
+      <tr><td class="id">FO-10</td><td><span class="chip med">Med</span></td><td>No SMS or WhatsApp provider live; Indian SMS needs DLT template registration</td><td>Comms</td><td>Owner</td><td class="num">10 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-11</td><td><span class="chip med">Med</span></td><td>No online payments; cash and static UPI QR only</td><td>Payments</td><td>Dev</td><td class="num">7 d</td><td>Deferred</td></tr>
+      <tr><td class="id">FO-12</td><td><span class="chip med">Med</span></td><td>Driver sign-in is a shared admin-set PIN, not phone OTP</td><td>Auth</td><td>Dev</td><td class="num">2 d</td><td>Deferred by owner</td></tr>
+      <tr><td class="id">FO-13</td><td><span class="chip med">Med</span></td><td>Map tiles come from public OpenStreetMap servers, whose policy forbids heavy commercial use</td><td>Maps</td><td>Dev</td><td class="num">1 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-14</td><td><span class="chip med">Med</span></td><td>Vercel Hobby plan does not allow commercial use</td><td>Hosting</td><td>Owner</td><td class="num">0.1 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-15</td><td><span class="chip med">Med</span></td><td>No booking cancellation flow for customer or admin</td><td>Booking</td><td>Dev</td><td class="num">1.5 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-16</td><td><span class="chip med">Med</span></td><td>No privacy notice or consent for phone and location data (DPDP Act 2023)</td><td>Legal</td><td>Owner</td><td class="num">1 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-17</td><td><span class="chip low">Low</span></td><td>57 lint errors</td><td>Code</td><td>Dev</td><td class="num">1.5 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-18</td><td><span class="chip low">Low</span></td><td>Main bundle 792 KB, over Vite's 500 KB warning; slow on 3G</td><td>Performance</td><td>Dev</td><td class="num">1 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-19</td><td><span class="chip low">Low</span></td><td>No Hindi interface</td><td>UX</td><td>Dev</td><td class="num">3 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-20</td><td><span class="chip low">Low</span></td><td>Single organisation; no self-serve onboarding for a second fleet</td><td>Platform</td><td>Dev</td><td class="num">5 d</td><td>Deferred</td></tr>
+      <tr><td class="id">FO-21</td><td><span class="chip low">Low</span></td><td><code>DriverApp.tsx</code> 887 lines, <code>AdminDashboard.tsx</code> over 1,000</td><td>Code</td><td>Dev</td><td class="num">2 d</td><td>Open</td></tr>
+      <tr><td class="id">FO-22</td><td><span class="chip low">Low</span></td><td>Admin and driver can't be signed in on one browser at once</td><td>Auth</td><td>Dev</td><td class="num">n/a</td><td>By design; documented</td></tr>
+      <tr><td class="id">FO-23</td><td><span class="chip ok">Done</span></td><td>Tenant isolation, PIN sign-in, public driver view, real dispatch distances, cash maths, code split, dependency trim</td><td>Various</td><td>Dev</td><td class="num">—</td><td>Live and verified</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Workflow: each issue moves Open → In progress → In review (PR plus <code>npm test</code>, <code>db:check</code>) → Done (merged and deployed). Critical issues block any merge to main that does not fix them. New issues get the next FO number and a severity on the day they are found.</p>
+</section>
+
+<section id="pert">
+  <h2>PERT chart</h2>
+  <p>Estimates are working days for one developer. Expected time is (optimistic + 4 × most likely + pessimistic) ÷ 6. The critical path is shaded.</p>
+  <pre class="mermaid">
+flowchart LR
+  S((Start)) --> D[D Land branch<br/>0.5d]
+  S --> A[A Lock driver writes<br/>1.1d]
+  S --> B[B Server-side fares<br/>2.2d]
+  S --> C[C Photo bucket rules<br/>1.1d]
+  S --> L[L Map tiles<br/>1.3d]
+  S --> M[M Clean demo data<br/>0.5d]
+  S --> K[K Split bundle<br/>1.1d]
+  S --> H[H SMS / WhatsApp + DLT<br/>10.8d]
+  D --> E[E Update e2e tests<br/>2.2d]
+  D --> G[G Lint to zero<br/>1.7d]
+  E --> F[F CI pipeline<br/>1.1d]
+  G --> F
+  A --> N[N Pilot with Anil Cabs<br/>7.2d]
+  B --> N
+  C --> N
+  F --> N
+  L --> N
+  M --> N
+  B --> J[J UPI payments<br/>7.3d]
+  H --> I[I Driver phone OTP<br/>2.0d]
+  N --> O((Go-live<br/>0.5d))
+  I --> O
+  J --> O
+  K --> O
+  classDef cp fill:#fbeedd,stroke:#b35c00,stroke-width:2px,color:#1d2330
+  class S,H,I,O cp
+  linkStyle 7,18,20 stroke:#b35c00,stroke-width:3px
+  </pre>
+  <div class="frame"><table>
+    <thead><tr><th>Task</th><th>Depends on</th><th class="num">O</th><th class="num">M</th><th class="num">P</th><th class="num">Expected</th><th class="num">Start</th><th class="num">Finish</th><th class="num">Slack</th></tr></thead>
+    <tbody>
+      <tr><td>D Commit, repair migrations, merge</td><td>—</td><td class="num">0.25</td><td class="num">0.5</td><td class="num">1</td><td class="num">0.54</td><td class="num">0.00</td><td class="num">0.54</td><td class="num">1.87</td></tr>
+      <tr><td>A Lock driver writes (B2, B3)</td><td>—</td><td class="num">0.5</td><td class="num">1</td><td class="num">2</td><td class="num">1.08</td><td class="num">0.00</td><td class="num">1.08</td><td class="num">4.58</td></tr>
+      <tr><td>B Server-side fares and pricing (B1, B5)</td><td>—</td><td class="num">1</td><td class="num">2</td><td class="num">4</td><td class="num">2.17</td><td class="num">0.00</td><td class="num">2.17</td><td class="num">3.33</td></tr>
+      <tr><td>C Odometer bucket rules (B4)</td><td>—</td><td class="num">0.5</td><td class="num">1</td><td class="num">2</td><td class="num">1.08</td><td class="num">0.00</td><td class="num">1.08</td><td class="num">4.58</td></tr>
+      <tr><td>L Map tile provider</td><td>—</td><td class="num">0.5</td><td class="num">1</td><td class="num">3</td><td class="num">1.25</td><td class="num">0.00</td><td class="num">1.25</td><td class="num">4.41</td></tr>
+      <tr><td>M Demo data cleanup, seed pilot data</td><td>—</td><td class="num">0.25</td><td class="num">0.5</td><td class="num">1</td><td class="num">0.54</td><td class="num">0.00</td><td class="num">0.54</td><td class="num">5.12</td></tr>
+      <tr><td>K Code-split the bundle</td><td>—</td><td class="num">0.5</td><td class="num">1</td><td class="num">2</td><td class="num">1.08</td><td class="num">0.00</td><td class="num">1.08</td><td class="num">11.75</td></tr>
+      <tr class="cp"><td>H SMS / WhatsApp provider, DLT templates</td><td>—</td><td class="num">5</td><td class="num">10</td><td class="num">20</td><td class="num">10.83</td><td class="num">0.00</td><td class="num">10.83</td><td class="num">0.00</td></tr>
+      <tr><td>E Rewrite e2e for PIN flow</td><td>D</td><td class="num">1</td><td class="num">2</td><td class="num">4</td><td class="num">2.17</td><td class="num">0.54</td><td class="num">2.71</td><td class="num">1.87</td></tr>
+      <tr><td>G Lint to zero</td><td>D</td><td class="num">1</td><td class="num">1.5</td><td class="num">3</td><td class="num">1.67</td><td class="num">0.54</td><td class="num">2.21</td><td class="num">2.37</td></tr>
+      <tr><td>F CI on every PR</td><td>E, G</td><td class="num">0.5</td><td class="num">1</td><td class="num">2</td><td class="num">1.08</td><td class="num">2.71</td><td class="num">3.79</td><td class="num">1.87</td></tr>
+      <tr><td>N Supervised pilot (one week)</td><td>A, B, C, F, L, M</td><td class="num">5</td><td class="num">7</td><td class="num">10</td><td class="num">7.17</td><td class="num">3.79</td><td class="num">10.96</td><td class="num">1.87</td></tr>
+      <tr><td>J UPI payments (Razorpay or similar)</td><td>B</td><td class="num">4</td><td class="num">7</td><td class="num">12</td><td class="num">7.33</td><td class="num">2.17</td><td class="num">9.50</td><td class="num">3.33</td></tr>
+      <tr class="cp"><td>I Driver phone OTP</td><td>H</td><td class="num">1</td><td class="num">2</td><td class="num">3</td><td class="num">2.00</td><td class="num">10.83</td><td class="num">12.83</td><td class="num">0.00</td></tr>
+      <tr class="cp"><td>O Go-live</td><td>N, I, J, K</td><td class="num">0.5</td><td class="num">0.5</td><td class="num">0.5</td><td class="num">0.50</td><td class="num">12.83</td><td class="num">13.33</td><td class="num">0.00</td></tr>
+    </tbody>
+  </table></div>
+  <div class="cols">
+    <div>
+      <h3>Critical path: H → I → O, 13.3 days</h3>
+      <p>SMS sign-up is the long pole because Indian carriers require DLT registration of the sender and every message template before delivery. Start it on day one; it is mostly waiting, so the developer works the pilot path in parallel.</p>
+    </div>
+    <div>
+      <h3>Confidence</h3>
+      <p>Path variance is 6.36 (σ ≈ 2.5 days). About 86% chance of go-live within 16 working days, 50% within 13.3. If the owner keeps PIN sign-in, task I drops and the pilot path (D → E → F → N → O, 11.5 days) becomes critical.</p>
+    </div>
+  </div>
+</section>
+
+<section id="constraints">
+  <h2>Project constraints</h2>
+  <div class="frame"><table>
+    <thead><tr><th>Constraint</th><th>Detail</th><th>Effect on the plan</th></tr></thead>
+    <tbody>
+      <tr><td><strong>People</strong></td><td>One developer working with Claude; the fleet owner is the only domain expert and tester.</td><td>No parallel feature work. Pilot feedback comes through one person.</td></tr>
+      <tr><td><strong>Budget</strong></td><td>Near zero. Supabase free tier (500 MB database, 1 GB storage, 2 GB egress), Ola Maps free tier, Vercel Hobby.</td><td>Vercel needs the paid Pro plan before charging customers. Photos must be compressed to stay inside 1 GB.</td></tr>
+      <tr><td><strong>Regulation</strong></td><td>TRAI DLT rules for SMS; DPDP Act 2023 for phone numbers and live location; GST invoices for fares.</td><td>SMS is on the critical path. A privacy notice and data-retention rule are needed before go-live.</td></tr>
+      <tr><td><strong>Devices</strong></td><td>Drivers use low-end Android phones on patchy 3G/4G, often outdoors in sun.</td><td>Bundle size and offline handling matter more than visual polish. Large tap targets.</td></tr>
+      <tr><td><strong>Language</strong></td><td>Tier-2 city drivers and customers; many prefer Hindi.</td><td>English-only is acceptable for the pilot, not for wider rollout.</td></tr>
+      <tr><td><strong>Architecture</strong></td><td>Browser talks to Supabase directly. Every rule must live in database policies or server functions.</td><td>Any check done only in React is not a check. B1–B3 came from this.</td></tr>
+      <tr><td><strong>Third parties</strong></td><td>Ola Maps (5M calls a month free), Nominatim and OSRM public servers as fallback, unpkg for Leaflet.</td><td>Public fallbacks have usage limits and can rate-limit a busy day.</td></tr>
+      <tr><td><strong>Tenancy</strong></td><td>One organisation (Anil Cabs) in production; the schema is multi-tenant but there is no onboarding UI.</td><td>A second fleet needs manual SQL until FO-20 is done.</td></tr>
+      <tr><td><strong>Scope decisions</strong></td><td>Owner chose admin-set PINs over SMS OTP "for now"; payments deferred.</td><td>Both stay off the pilot gate; both are on the go-live gate.</td></tr>
+      <tr><td><strong>Release</strong></td><td>Vercel deploys <code>main</code> automatically; nothing is pushed without the owner's go-ahead.</td><td>Every merge to main is a production release.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="usecases">
+  <h2>Use cases</h2>
+  <p>Every way each kind of user can use FleetOs, with the state of each in today's build.</p>
+  <div class="legend"><span class="chip ok">Works</span> live and verified <span class="chip med">Partial</span> works with gaps <span class="chip crit">Mock</span> looks real, isn't <span class="chip low">Missing</span> not built</div>
+
+  <div class="uc-actor">
+    <h3>Customer (rider)</h3>
+    <div class="frame"><table>
+      <thead><tr><th>ID</th><th>Use case</th><th>Flow</th><th>State</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-C1</td><td>Book a ride now</td><td>Choose city ride, enter pickup and drop, see route preview, confirm with name and phone.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-C2</td><td>Schedule a ride</td><td>Pick trip type (city, airport, sightseeing, outstation), date and time, stops, days, driver stay.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-C3</td><td>Book a fixed route</td><td>Pick a saved route from the home screen.</td><td><span class="chip med">Partial</span></td></tr>
+        <tr><td class="id">UC-C4</td><td>See the fare before booking</td><td>Estimate shown on summary.</td><td><span class="chip crit">Mock</span> hard-coded fares</td></tr>
+        <tr><td class="id">UC-C5</td><td>Check booking status</td><td>Open tracking link; see assigned driver, vehicle, plate.</td><td><span class="chip ok">Works</span> status polling</td></tr>
+        <tr><td class="id">UC-C6</td><td>Track the cab live</td><td>See driver on the map and ETA.</td><td><span class="chip crit">Mock</span></td></tr>
+        <tr><td class="id">UC-C7</td><td>Call or message the driver</td><td>Buttons on tracking screen.</td><td><span class="chip med">Partial</span> on mock screen</td></tr>
+        <tr><td class="id">UC-C8</td><td>Get SMS / WhatsApp updates</td><td>Assignment, arrival, invoice, feedback request.</td><td><span class="chip med">Partial</span> no provider</td></tr>
+        <tr><td class="id">UC-C9</td><td>Pay</td><td>Cash or UPI QR to driver; online payment.</td><td><span class="chip med">Partial</span> no online</td></tr>
+        <tr><td class="id">UC-C10</td><td>Cancel or change a booking</td><td>—</td><td><span class="chip low">Missing</span></td></tr>
+        <tr><td class="id">UC-C11</td><td>Rate the trip, leave a Google review</td><td>Review link after trip.</td><td><span class="chip med">Partial</span></td></tr>
+        <tr><td class="id">UC-C12</td><td>Get an invoice</td><td>Driver triggers invoice message.</td><td><span class="chip med">Partial</span> no provider</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="uc-actor">
+    <h3>Driver</h3>
+    <div class="frame"><table>
+      <thead><tr><th>ID</th><th>Use case</th><th>Flow</th><th>State</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-D1</td><td>Register to join the fleet</td><td>Enter phone and name; wait on "Application Under Review".</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-D2</td><td>Sign in with PIN</td><td>Phone, then admin-set PIN; stays signed in on that phone.</td><td><span class="chip ok">Works</span> 14 pairwise cases designed</td></tr>
+        <tr><td class="id">UC-D3</td><td>Go on or off duty</td><td>Toggle status; location shared while on duty.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-D4</td><td>Receive and accept a trip</td><td>Alarm sounds, trip card, confirm.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-D5</td><td>See upcoming scheduled trips</td><td>Scheduled trip cards.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-D6</td><td>Navigate to pickup and drop</td><td>Trip map, hand-off to phone maps.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-D7</td><td>Call or WhatsApp the customer</td><td>Contact buttons on trip.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-D8</td><td>Record odometer at start and end</td><td>Photo and reading.</td><td><span class="chip med">Partial</span> bucket rules open</td></tr>
+        <tr><td class="id">UC-D9</td><td>Log expenses (fuel, toll, food)</td><td>Expense tracker; saved per trip.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-D10</td><td>Record a collection (cash, UPI)</td><td>Collection entry, net shown with sign.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-D11</td><td>Hand over cash to the office</td><td>Submit hand-over amount.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-D12</td><td>Show UPI QR to customer</td><td>Org QR on screen.</td><td><span class="chip med">Partial</span></td></tr>
+        <tr><td class="id">UC-D13</td><td>Work through a network drop</td><td>Offline indicator; entries queued.</td><td><span class="chip med">Partial</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="uc-actor">
+    <h3>Fleet owner / dispatcher (admin)</h3>
+    <div class="frame"><table>
+      <thead><tr><th>ID</th><th>Use case</th><th>Flow</th><th>State</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-A1</td><td>Sign in</td><td>Email and password.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-A2</td><td>See today at a glance</td><td>Stats tiles, live map of drivers.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-A3</td><td>Create a booking for a phone caller</td><td>New booking sheet.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-A4</td><td>Assign the best driver</td><td>Dispatch ranks by real distance and busy state.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-A5</td><td>Approve a new driver</td><td>Approve pending application.</td><td><span class="chip ok">Works</span> but see B2</td></tr>
+        <tr><td class="id">UC-A6</td><td>Set or reset a driver's PIN</td><td>Login PIN control.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-A7</td><td>Add a driver directly</td><td>—</td><td><span class="chip low">Missing</span> drivers must self-register</td></tr>
+        <tr><td class="id">UC-A8</td><td>Set prices and surge rules</td><td>Pricing engine screen.</td><td><span class="chip crit">Mock</span> Save does nothing</td></tr>
+        <tr><td class="id">UC-A9</td><td>Review collections and hand-overs</td><td>Collections history, payment summary.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-A10</td><td>Cancel or reassign a booking</td><td>—</td><td><span class="chip low">Missing</span></td></tr>
+        <tr><td class="id">UC-A11</td><td>Send customer messages</td><td>Edge function dispatch.</td><td><span class="chip med">Partial</span> no provider</td></tr>
+        <tr><td class="id">UC-A12</td><td>Set UPI ID, QR and review link</td><td>Organisation settings.</td><td><span class="chip med">Partial</span></td></tr>
+        <tr><td class="id">UC-A13</td><td>Export reports for accounts</td><td>—</td><td><span class="chip low">Missing</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="uc-actor">
+    <h3>Platform owner (super admin)</h3>
+    <div class="frame"><table>
+      <thead><tr><th>ID</th><th>Use case</th><th>Flow</th><th>State</th></tr></thead>
+      <tbody>
+        <tr><td class="id">UC-S1</td><td>Act as admin of any fleet</td><td>Listed in <code>super_admin_users</code>.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-S2</td><td>Onboard a new fleet</td><td>Create organisation, admin, slug.</td><td><span class="chip low">Missing</span> manual SQL</td></tr>
+        <tr><td class="id">UC-S3</td><td>Check the live database matches the code</td><td><code>npm run db:check</code>.</td><td><span class="chip ok">Works</span></td></tr>
+        <tr><td class="id">UC-S4</td><td>Billing and plans for fleets</td><td>—</td><td><span class="chip low">Missing</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+</div>

@@ -990,6 +990,10 @@ export type Database = {
       }
       is_org_admin: { Args: { p_org: string }; Returns: boolean }
       my_driver_id: { Args: never; Returns: number }
+      quote_fare: {
+        Args: { p_booking: Json; p_org_id: string }
+        Returns: number
+      }
       register_driver: {
         Args: { p_name: string; p_org_id: string; p_phone: string }
         Returns: {
