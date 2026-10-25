@@ -63,7 +63,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const db = supabase as any;
+      const db = supabase;
         let query = db
           .from('organizations')
           // Only public columns: secrets like whatsapp_api_key are not readable from the browser.

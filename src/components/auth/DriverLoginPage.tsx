@@ -30,7 +30,7 @@ export function DriverLoginPage({ onSignedIn }: { onSignedIn?: () => void } = {}
 
     // Re-read the driver with the signed-in session: the admin may have approved, changed
     // the PIN (which signs the driver out) or removed them.
-    (supabase as any)
+    supabase
       .from('drivers')
       .select('id, org_id, name, phone, vehicle_model, plate_number, status, is_temporary, odometer_required')
       .eq('id', parsed.id)
@@ -79,7 +79,7 @@ export function DriverLoginPage({ onSignedIn }: { onSignedIn?: () => void } = {}
     }
     setLoading(true);
     if (!(await ensureSession())) { setLoading(false); return; }
-    const { data: rows, error: signInError } = await (supabase as any).rpc('driver_sign_in', {
+    const { data: rows, error: signInError } = await supabase.rpc('driver_sign_in', {
       p_org_id: org!.id, p_phone: phone, p_pin: pin,
     });
     setLoading(false);
@@ -89,7 +89,7 @@ export function DriverLoginPage({ onSignedIn }: { onSignedIn?: () => void } = {}
       setPin('');
       return;
     }
-    const driver = result.driver;
+    const driver = result.driver as { id: number; status: string | null } & Record<string, unknown>;
     const next: Screen = isActive(driver.status) ? 'app' : 'holding';
     localStorage.setItem('fleetos_driver', JSON.stringify(driver));
     localStorage.setItem('fleetos_driver_screen', next);
@@ -105,7 +105,7 @@ export function DriverLoginPage({ onSignedIn }: { onSignedIn?: () => void } = {}
       return;
     }
     setLoading(true);
-    const { data: rows, error: registerError } = await (supabase as any).rpc('register_driver', {
+    const { data: rows, error: registerError } = await supabase.rpc('register_driver', {
       p_org_id: org.id, p_phone: phone, p_name: driverName,
     });
     setLoading(false);

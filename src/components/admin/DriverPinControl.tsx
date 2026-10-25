@@ -17,7 +17,7 @@ export function DriverPinControl({ driverId, driverName }: { driverId: number; d
     queryKey: ['drivers-with-pin', org?.id],
     enabled: !!org,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc('drivers_with_pin', { p_org_id: org!.id });
+      const { data, error } = await supabase.rpc('drivers_with_pin', { p_org_id: org!.id });
       if (error) return [] as number[];
       return (data ?? []) as number[];
     },
@@ -30,7 +30,7 @@ export function DriverPinControl({ driverId, driverName }: { driverId: number; d
       return;
     }
     setSaving(true);
-    const { error } = await (supabase as any).rpc('set_driver_pin', { p_driver_id: driverId, p_pin: pin });
+    const { error } = await supabase.rpc('set_driver_pin', { p_driver_id: driverId, p_pin: pin });
     setSaving(false);
     if (error) {
       toast.error(error.message ?? "Couldn't set the PIN");

@@ -15,6 +15,7 @@ import { useMyDriverProfile, useTodayHandover, SupabaseBooking, SupabaseDriver }
 import { useOrg } from '@/hooks/useOrg';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import type { TablesInsert } from '@/integrations/supabase/types';
 import { olaDirections, olaGeocode, useOlaMaps } from '@/lib/olaMaps';
 import { queueFeedbackMessage, queueInvoiceMessage } from '@/lib/customerAutomation';
 import { toast } from 'sonner';
@@ -771,7 +772,7 @@ export function DriverApp({ driver }: DriverAppProps) {
     queryKey: ['driver-trips', myProfile?.id, org?.id],
     queryFn: async () => {
       if (!myProfile?.id || !org?.id) return [];
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('bookings')
         .select('*')
         .eq('org_id', org.id)
@@ -935,7 +936,7 @@ export function DriverApp({ driver }: DriverAppProps) {
     if (lastSyncedStatusRef.current === desiredStatus) return;
     lastSyncedStatusRef.current = desiredStatus;
 
-    void (supabase as any)
+    void supabase
       .from('drivers')
       .update({ status: desiredStatus })
       .eq('id', myProfile.id)
@@ -959,7 +960,7 @@ export function DriverApp({ driver }: DriverAppProps) {
       if (!movedEnough && !waitedEnough) return;
 
       lastPublishedLocationRef.current = { lat, lng, publishedAt: Date.now() };
-      await (supabase as any)
+      await supabase
         .from('drivers')
         .update({
           location_lat: lat,
@@ -1009,7 +1010,7 @@ export function DriverApp({ driver }: DriverAppProps) {
 
   const handleConfirm = async (bookingId: number) => {
     if (!myProfile?.id) return;
-    const db = supabase as any;
+    const db = supabase;
     await db.from('bookings').update({ status: 'confirmed', driver_confirmed_at: new Date().toISOString() }).eq('id', bookingId);
     queryClient.invalidateQueries({ queryKey: ['driver-trips', myProfile.id, org?.id] });
     queryClient.invalidateQueries({ queryKey: ['bookings'] });
@@ -1021,8 +1022,8 @@ export function DriverApp({ driver }: DriverAppProps) {
     setScheduledTrips(trips => sortTripsBySchedule(
       trips.map(trip => trip.id === `BK-${bookingId}` ? { ...trip, status: 'active' } : trip)
     ));
-    await (supabase as any).from('drivers').update({ status: 'on-trip' }).eq('id', myProfile.id);
-    await (supabase as any).from('bookings').update({ status: 'in-progress', trip_started_at: new Date().toISOString() }).eq('id', bookingId);
+    await supabase.from('drivers').update({ status: 'on-trip' }).eq('id', myProfile.id);
+    await supabase.from('bookings').update({ status: 'in-progress', trip_started_at: new Date().toISOString() }).eq('id', bookingId);
     queryClient.invalidateQueries({ queryKey: ['driver-trips', myProfile.id, org?.id] });
     queryClient.invalidateQueries({ queryKey: ['bookings'] });
     queryClient.invalidateQueries({ queryKey: ['drivers'] });
@@ -1033,7 +1034,7 @@ export function DriverApp({ driver }: DriverAppProps) {
     setScheduledTrips(trips => trips.filter(trip => trip.id !== `BK-${bookingId}`));
     setBannerTrips(trips => trips.filter(tripId => tripId !== `BK-${bookingId}`));
     setAlarmTrips(trips => trips.filter(tripId => tripId !== `BK-${bookingId}`));
-    const db = supabase as any;
+    const db = supabase;
     await db.from('bookings').update({ status: 'completed', trip_completed_at: new Date().toISOString() }).eq('id', bookingId);
     await db.from('drivers').update({ status: 'free' }).eq('id', myProfile.id);
     queryClient.invalidateQueries({ queryKey: ['driver-trips', myProfile.id, org?.id] });
@@ -1052,7 +1053,7 @@ export function DriverApp({ driver }: DriverAppProps) {
     if (!collectBookingId) return;
     setCollectLoading(true);
     const paidAmount = Number(collectAmount);
-    await (supabase as any).from('bookings').update({
+    await supabase.from('bookings').update({
       amount_collected: paidAmount,
       payment_method: collectMethod,
       payment_confirmed_at: new Date().toISOString(),
@@ -1086,7 +1087,7 @@ export function DriverApp({ driver }: DriverAppProps) {
     if (!myProfile?.id) return;
     const start = new Date();
     start.setHours(0, 0, 0, 0);
-    (supabase as any)
+    supabase
       .from('driver_cash_entries')
       .select('id, kind, category, method, label, amount, note, booking_id, created_at')
       .eq('driver_id', myProfile.id)
@@ -1106,9 +1107,9 @@ export function DriverApp({ driver }: DriverAppProps) {
       });
   }, [myProfile?.id]);
 
-  const saveCashEntry = async (row: Record<string, unknown>) => {
+  const saveCashEntry = async (row: Omit<TablesInsert<'driver_cash_entries'>, 'org_id' | 'driver_id'>) => {
     if (!myProfile || !org) return null;
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('driver_cash_entries')
       .insert({ org_id: org.id, driver_id: myProfile.id, ...row })
       .select('id')
@@ -1134,7 +1135,7 @@ export function DriverApp({ driver }: DriverAppProps) {
 
   const deleteExpense = async (id: string) => {
     if (id.startsWith('db_')) {
-      const { error } = await (supabase as any).from('driver_cash_entries').delete().eq('id', Number(id.slice(3)));
+      const { error } = await supabase.from('driver_cash_entries').delete().eq('id', Number(id.slice(3)));
       if (error) { toast.error("Couldn't delete that expense. Try again."); return; }
     }
     setExpenses(prev => prev.filter(e => e.id !== id));
@@ -1143,7 +1144,7 @@ export function DriverApp({ driver }: DriverAppProps) {
   const handleHandOver = async (amount: number) => {
     if (!myProfile || !org) return;
     setHandoverLoading(true);
-    const db = supabase as any;
+    const db = supabase;
     const { error } = await db
       .from('cash_handovers_v2')
       .insert({ org_id: org.id, driver_id: myProfile.id, amount: Math.round(amount * 100) / 100, handed_over_at: new Date().toISOString() });
@@ -1528,7 +1529,7 @@ export function DriverApp({ driver }: DriverAppProps) {
               {tripPhase === 'navigating' && <button onClick={() => setTripPhase('arrived')} className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-400 active:scale-95 transition-all text-white font-bold">I've Arrived at Pickup</button>}
 {tripPhase === 'arrived' && (
                 <div className="space-y-3">
-                  {(myProfile as any)?.is_temporary && (
+                  {myProfile?.is_temporary && (
                     <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl">
                       <p className="text-xs font-bold text-orange-300 mb-2">📸 Odometer photo required</p>
                       <label className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-xs font-bold cursor-pointer active:scale-95 transition-all">
@@ -1550,7 +1551,7 @@ export function DriverApp({ driver }: DriverAppProps) {
                               const { data: urlData } = supabase.storage
                                 .from('odometer-photos')
                                 .getPublicUrl(fileName);
-                              await (supabase as any).from('drivers').update({ odometer_start_photo: urlData.publicUrl }).eq('id', myProfile.id);
+                              await supabase.from('drivers').update({ odometer_start_photo: urlData.publicUrl }).eq('id', myProfile.id);
                               toast('Start odometer photo saved ✓');
                             }
                           }}
@@ -1572,7 +1573,7 @@ export function DriverApp({ driver }: DriverAppProps) {
                 )}
 {tripPhase === 'started' && (
                 <div className="space-y-3">
-                  {(myProfile as any)?.is_temporary && (
+                  {myProfile?.is_temporary && (
                     <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl">
                       <p className="text-xs font-bold text-orange-300 mb-2">📸 Odometer photo required before ending</p>
                       <label className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-xs font-bold cursor-pointer active:scale-95 transition-all">
@@ -1594,7 +1595,7 @@ export function DriverApp({ driver }: DriverAppProps) {
                               const { data: urlData } = supabase.storage
                                 .from('odometer-photos')
                                 .getPublicUrl(fileName);
-                              await (supabase as any).from('drivers').update({ odometer_end_photo: urlData.publicUrl }).eq('id', myProfile.id);
+                              await supabase.from('drivers').update({ odometer_end_photo: urlData.publicUrl }).eq('id', myProfile.id);
                               toast('End odometer photo saved ✓');
                             }
                           }}

@@ -31,7 +31,7 @@ async function getConflict(driverId: number, tripTime: string, orgId: string): P
   const windowStart = new Date(t - 2 * 60 * 60 * 1000).toISOString(); // -2hr
   const windowEnd   = new Date(t + 4 * 60 * 60 * 1000).toISOString(); // +4hr
 
-  const { data } = await (supabase as any)
+  const { data } = await supabase
     .from('bookings')
     .select('id, scheduled_at')
     .eq('org_id', orgId)
@@ -119,7 +119,7 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
     setError(null);
     try {
       const selectedDriver = candidates.find(candidate => candidate.id === driverId) ?? drivers.find(driver => driver.id === driverId);
-      const db = supabase as any;
+      const db = supabase;
       const { error: bookingError } = await db
         .from('bookings')
         .update({

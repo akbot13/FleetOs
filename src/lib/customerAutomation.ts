@@ -29,7 +29,7 @@ interface OrgMessagingConfig {
 async function logCustomerMessage(customerPhone: string | null, intent: string, message: string) {
   if (!customerPhone || !message.trim()) return;
 
-  const db = supabase as any;
+  const db = supabase;
   const { error } = await db.from('messages_log').insert({
     customer_phone: customerPhone,
     intent,

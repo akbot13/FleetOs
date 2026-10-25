@@ -66,7 +66,7 @@ export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
     queryFn: async () => {
       if (trackingToken === null) return null;
 
-      const db = supabase as any;
+      const db = supabase;
       const { data: rows, error } = await db.rpc('get_booking_status', { p_token: trackingToken });
       if (error) throw error;
       const booking = rows?.[0];
@@ -145,7 +145,7 @@ export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
         driver_stay_required: data.tripType === 'multiday' ? data.driverStayRequired : null,
       };
 
-      const db = supabase as any;
+      const db = supabase;
       const { data: rows, error } = await db.rpc('create_customer_booking', { p_org_id: org.id, p_booking: payload });
       if (error) throw error;
       const created = rows?.[0];

@@ -89,7 +89,7 @@ export function NewBookingSheet({ open, onClose, drivers }: NewBookingSheetProps
       : null;
     const status = assignedDriver ? 'confirmed' : 'pending';
 
-    const db = supabase as any;
+    const db = supabase;
     const { data: insertedBooking, error } = await db
       .from('bookings')
       .insert({

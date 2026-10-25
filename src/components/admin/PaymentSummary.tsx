@@ -11,13 +11,13 @@ export function PaymentSummary({ bookings }: PaymentSummaryProps) {
 
   const totalFare = todayBookings.reduce((sum, b) => sum + (b.fare ?? 0), 0);
   const totalCollected = todayBookings
-    .filter(b => (b as any).payment_confirmed_at != null)
-    .reduce((sum, b) => sum + ((b as any).amount_collected ?? 0), 0);
+    .filter(b => b.payment_confirmed_at != null)
+    .reduce((sum, b) => sum + (b.amount_collected ?? 0), 0);
   const cashTotal = todayBookings
-    .filter(b => (b as any).payment_confirmed_at != null && b.payment_method === 'cash')
-    .reduce((sum, b) => sum + ((b as any).amount_collected ?? 0), 0);
+    .filter(b => b.payment_confirmed_at != null && b.payment_method === 'cash')
+    .reduce((sum, b) => sum + (b.amount_collected ?? 0), 0);
   const upiTotal = totalCollected - cashTotal;
-  const pendingCount = todayBookings.filter(b => (b as any).payment_confirmed_at == null).length;
+  const pendingCount = todayBookings.filter(b => b.payment_confirmed_at == null).length;
   const partialCount = todayBookings.filter(b =>
     b.payment_confirmed_at != null &&
     (b.amount_collected ?? 0) < (b.fare ?? 0)

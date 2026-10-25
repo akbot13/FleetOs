@@ -16,7 +16,7 @@ export function useDriversPublic() {
     enabled: !!org,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('drivers_public' as any)
+        .from('drivers_public')
         .select('id, name, vehicle_model, status')
         .eq('org_id', org!.id);
       if (error) throw error;
