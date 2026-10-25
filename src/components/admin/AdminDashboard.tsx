@@ -15,6 +15,7 @@ import { CollectionsHistory } from './CollectionsHistory';
 import { NewBookingSheet } from './NewBookingSheet';
 import { BentoStats } from './BentoStats';
 import { DriverFleetList } from './DriverFleetList';
+import { DriverPinControl } from './DriverPinControl';
 import { MapPanel } from './MapPanel';
 import type { ActiveTab } from './AdminShell';
 import { OfflineIndicator } from '@/components/ui/OfflineIndicator';
@@ -746,6 +747,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                         <span>Last updated</span>
                         <span className="font-medium text-gray-800">{getLastUpdated(driver)}</span>
                       </div>
+                      <DriverPinControl driverId={driver.id} driverName={driver.name} />
                       {driver.location_lat && (
                         <>
                           <div className="flex justify-between text-xs text-gray-500">

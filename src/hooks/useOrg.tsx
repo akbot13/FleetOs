@@ -9,7 +9,6 @@ export interface OrgConfig {
   brand_logo_url: string | null;
   brand_color: string | null;
   join_code: string;
-  whatsapp_api_key: string | null;
   upi_id: string | null;
   upi_qr_url: string | null;
   google_review_url: string | null;
@@ -67,7 +66,8 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       const db = supabase as any;
         let query = db
           .from('organizations')
-          .select('id, slug, name, brand_name, brand_logo_url, brand_color, join_code, whatsapp_api_key, upi_id, upi_qr_url, google_review_url, report_frequency_days');
+          // Only public columns: secrets like whatsapp_api_key are not readable from the browser.
+          .select('id, slug, name, brand_name, brand_logo_url, brand_color, join_code, upi_id, upi_qr_url, google_review_url, report_frequency_days');
 
       if (slug) {
         query = query.eq('slug', slug);

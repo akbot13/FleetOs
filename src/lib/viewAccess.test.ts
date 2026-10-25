@@ -17,30 +17,30 @@ describe('normalizeAppView', () => {
 
 describe('hasApprovedDriverSession', () => {
   beforeEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   it('returns true for a free driver on the app screen', () => {
-    sessionStorage.setItem('fleetos_driver', JSON.stringify({ status: 'free' }));
-    sessionStorage.setItem('fleetos_driver_screen', 'app');
+    localStorage.setItem('fleetos_driver', JSON.stringify({ status: 'free' }));
+    localStorage.setItem('fleetos_driver_screen', 'app');
     expect(hasApprovedDriverSession()).toBe(true);
   });
 
   it('returns false when the driver is pending', () => {
-    sessionStorage.setItem('fleetos_driver', JSON.stringify({ status: 'pending' }));
-    sessionStorage.setItem('fleetos_driver_screen', 'app');
+    localStorage.setItem('fleetos_driver', JSON.stringify({ status: 'pending' }));
+    localStorage.setItem('fleetos_driver_screen', 'app');
     expect(hasApprovedDriverSession()).toBe(false);
   });
 
   it('returns false for invalid JSON', () => {
-    sessionStorage.setItem('fleetos_driver', '{not json');
-    sessionStorage.setItem('fleetos_driver_screen', 'app');
+    localStorage.setItem('fleetos_driver', '{not json');
+    localStorage.setItem('fleetos_driver_screen', 'app');
     expect(hasApprovedDriverSession()).toBe(false);
   });
 
   it('returns false when keys are missing', () => {
     expect(hasApprovedDriverSession()).toBe(false);
-    sessionStorage.setItem('fleetos_driver', JSON.stringify({ status: 'free' }));
+    localStorage.setItem('fleetos_driver', JSON.stringify({ status: 'free' }));
     expect(hasApprovedDriverSession()).toBe(false);
   });
 });

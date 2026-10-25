@@ -15,8 +15,8 @@ export function normalizeAppView(value: string | null | undefined): AppView {
 export function hasApprovedDriverSession() {
   if (typeof window === 'undefined') return false;
 
-  const rawDriver = sessionStorage.getItem('fleetos_driver');
-  const rawScreen = sessionStorage.getItem('fleetos_driver_screen');
+  const rawDriver = localStorage.getItem('fleetos_driver');
+  const rawScreen = localStorage.getItem('fleetos_driver_screen');
   if (!rawDriver || !rawScreen) return false;
 
   try {

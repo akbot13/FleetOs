@@ -44,13 +44,26 @@ function AccessDenied({
   );
 }
 
+// The driver row saved at sign-in, so the driver app shows the driver's name and vehicle.
+function readStoredDriver() {
+  try {
+    return JSON.parse(localStorage.getItem('fleetos_driver') ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
 const Index = () => {
   const [view, setView] = useState<AppView>(() => {
     if (typeof window === 'undefined') return 'customer';
     return normalizeAppView(localStorage.getItem('fleetos_view'));
   });
 
-  const { user, loading, signOut } = useAuth();
+  // Bumped when a driver signs in so the stored driver session is re-read.
+  const [, setDriverSignInCount] = useState(0);
+  const { user: authUser, loading, signOut } = useAuth();
+  // Drivers sign in on an anonymous session; only real staff accounts count as a signed-in user here.
+  const user = authUser && !authUser.is_anonymous ? authUser : null;
   const { isAdmin, isDriver, hasApprovedDriverSession: storedDriverSession, isLoading: roleLoading } = useUserRole();
   const approvedDriverSession = storedDriverSession || hasApprovedDriverSession();
   const canOpenDriverSurface = isDriver || approvedDriverSession;
@@ -145,10 +158,17 @@ const Index = () => {
     <div className="relative min-h-screen">
       {view === 'customer' && <CustomerHome />}
       {view === 'admin' && <AdminShell activeTab="dashboard"><AdminDashboard /></AdminShell>}
-      {view === 'driver' && (canOpenDriverSurface ? <DriverApp /> : <DriverLoginPage />)}
+      {view === 'driver' && (canOpenDriverSurface
+        ? <DriverApp driver={readStoredDriver()} />
+        : <DriverLoginPage onSignedIn={() => setDriverSignInCount(c => c + 1)} />)}
       {view === 'pricing' && <PricingEngine />}
 
-      <div className="fixed top-4 right-4 z-50">
+      {/* Signed-in drivers have their own Log Out; on admin screens the switcher sits
+          at the bottom so it doesn't cover the header nav. */}
+      {!(view === 'driver' && canOpenDriverSurface) && (
+      <div className={view === 'admin' || view === 'pricing'
+        ? 'fixed bottom-6 left-1/2 -translate-x-1/2 z-50'
+        : 'fixed top-4 right-4 z-50'}>
         <div className="flex items-center gap-1 bg-primary/95 backdrop-blur-sm rounded-full px-1.5 py-1.5 shadow-elevated">
           {([
             { id: 'customer' as AppView, label: 'Customer', icon: Car, show: true },
@@ -189,6 +209,7 @@ const Index = () => {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };
