@@ -51,23 +51,7 @@ export function formatCurrency(amount: number) {
   return `₹${amount.toLocaleString('en-IN')}`;
 }
 
-export function metersBetween(
-  from: { lat: number; lng: number },
-  to: { lat: number; lng: number }
-) {
-  const toRad = (value: number) => (value * Math.PI) / 180;
-  const earthRadius = 6371000;
-  const dLat = toRad(to.lat - from.lat);
-  const dLng = toRad(to.lng - from.lng);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(from.lat)) *
-      Math.cos(toRad(to.lat)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return earthRadius * c;
-}
+export { metersBetween } from '@/lib/geo';
 
 export function bookingToActiveTrip(booking: SupabaseBooking): MockTrip {
   return {

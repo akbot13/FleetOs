@@ -1,3 +1,4 @@
+import { summarizeCash, formatSignedRupees } from '@/lib/cash';
 import { useState } from 'react';
 import { Fuel, IndianRupee, WifiOff, Wifi, Plus, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -30,11 +31,7 @@ export function ExpenseTracker({
   const [colNote, setColNote] = useState('');
   const [colMethod, setColMethod] = useState<'cash' | 'upi'>('cash');
 
-  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
-  const totalCollected = collections.reduce((s, c) => s + c.amount, 0);
-  const totalCashCollected = collections.filter(c => c.method === 'cash').reduce((s, c) => s + c.amount, 0);
-  const cashToHandOver = totalCashCollected - totalExpenses;
-  const netEarnings = totalCollected - totalExpenses;
+  const { totalExpenses, totalCollected, cashToHandOver, netEarnings } = summarizeCash(expenses, collections);
   const pendingSync = [...expenses, ...collections].filter(e => e.isOffline).length;
 
   const submitExpense = () => {
@@ -83,7 +80,7 @@ export function ExpenseTracker({
             <div className="text-[10px] text-gray-400 uppercase tracking-wider mt-0.5">Spent</div>
           </div>
           <div className={`text-center p-3 rounded-xl border ${netEarnings >= 0 ? 'bg-blue-500/10 border-blue-500/20' : 'bg-orange-500/10 border-orange-500/20'}`}>
-            <div className={`text-lg font-black ${netEarnings >= 0 ? 'text-blue-400' : 'text-orange-400'}`}>₹{Math.abs(netEarnings).toLocaleString()}</div>
+            <div className={`text-lg font-black ${netEarnings >= 0 ? 'text-blue-400' : 'text-orange-400'}`}>{formatSignedRupees(netEarnings)}</div>
             <div className="text-[10px] text-gray-400 uppercase tracking-wider mt-0.5">Net</div>
           </div>
         </div>

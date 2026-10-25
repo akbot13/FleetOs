@@ -13,7 +13,7 @@ Banned: crossfades, gradients on UI, particles, glows, bouncy easing, dead beats
 </direction>
 
 <structure>
-120 BPM, 30 beats, 60 seconds, about 6 beats per stage. Something happens on every beat.
+120 BPM is 2 beats per second: 120 beats in 60 seconds, about 24 beats per stage. Something happens on every beat.
 Beats 1-6, create a booking: the cursor clicks "New booking", pickup and drop type in, a trip type chip is chosen, the card settles with a fare.
 Beats 7-12, dispatch: the card shrinks into a trip pill, driver chips spring out, the cursor picks one, the driver's name and vehicle lock into the pill.
 Beats 13-18, start and complete the trip: the pill stretches into a trip bar, the start odometer reading counts in, the bar fills along the route, the end odometer reading counts in, a checkmark lands.
