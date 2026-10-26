@@ -16,6 +16,9 @@ interface TripPreviewMapProps {
   subtitle?: string;
   className?: string;
   mapClassName?: string;
+  // The assigned cab's last known position. Shown as a car marker that moves on updates.
+  driverLocation?: { lat: number; lng: number } | null;
+  driverLabel?: string;
 }
 
 type RouteStopKind = 'pickup' | 'stop' | 'drop';
@@ -61,6 +64,27 @@ function createStopMarker(label: string, kind: RouteStopKind, order?: number): H
   return marker;
 }
 
+function createDriverMarker(label: string): HTMLElement {
+  const marker = document.createElement('div');
+  marker.className = 'flex h-11 w-11 items-center justify-center';
+  marker.innerHTML = `
+    <div style="
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      background: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      border: 3px solid #facc15;
+      box-shadow: 0 14px 28px rgba(15,23,42,0.32);
+    ">🚗</div>
+  `;
+  marker.setAttribute('aria-label', label);
+  return marker;
+}
+
 export function TripPreviewMap({
   pickup = '',
   drop = '',
@@ -69,6 +93,8 @@ export function TripPreviewMap({
   subtitle = 'Auto-fit map with route highlight',
   className,
   mapClassName,
+  driverLocation = null,
+  driverLabel = 'Your driver',
 }: TripPreviewMapProps) {
   const [resolvedStops, setResolvedStops] = useState<ResolvedRouteStop[]>([]);
   const [isResolving, setIsResolving] = useState(false);
@@ -76,6 +102,11 @@ export function TripPreviewMap({
   const [routeProvider, setRouteProvider] = useState<string>('Preparing preview');
   const markersRef = useRef<any[]>([]);
   const routeLayerIdsRef = useRef<string[]>([]);
+  const driverMarkerRef = useRef<{ setLatLng: (latLng: [number, number]) => void; remove: () => void } | null>(null);
+  const driverCoordsRef = useRef<[number, number] | null>(null);
+  const stopCoordsRef = useRef<[number, number][]>([]);
+  const driverLat = driverLocation?.lat ?? null;
+  const driverLng = driverLocation?.lng ?? null;
   const stopSignature = [pickup, ...stops, drop].join('|');
 
   const routeStops: ResolvedRouteStop[] = [];
@@ -192,8 +223,9 @@ export function TripPreviewMap({
       return;
     }
 
+    stopCoordsRef.current = visibleStops.map(stop => [stop.lng!, stop.lat!] as [number, number]);
     fitBounds(
-      visibleStops.map(stop => [stop.lng!, stop.lat!] as [number, number]),
+      driverCoordsRef.current ? [...stopCoordsRef.current, driverCoordsRef.current] : stopCoordsRef.current,
       56
     );
 
@@ -253,6 +285,39 @@ export function TripPreviewMap({
       routeLayerIdsRef.current = [];
     };
   }, [addMarker, drawRoute, fitBounds, isLoaded, removeRoute, resolvedStops]);
+
+  // The cab marker has its own effect so a new GPS fix moves it instead of rebuilding the
+  // pins and route, which would flicker and re-request directions on every poll.
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    if (driverLat === null || driverLng === null) {
+      driverMarkerRef.current?.remove?.();
+      driverMarkerRef.current = null;
+      driverCoordsRef.current = null;
+      return;
+    }
+
+    driverCoordsRef.current = [driverLng, driverLat];
+    if (driverMarkerRef.current) {
+      driverMarkerRef.current.setLatLng([driverLat, driverLng]);
+      return;
+    }
+
+    driverMarkerRef.current = addMarker({
+      lat: driverLat,
+      lng: driverLng,
+      element: createDriverMarker(driverLabel),
+      label: `<div style="padding:10px 12px;font-size:13px;font-weight:700;color:#0f172a">${driverLabel}</div>`,
+    });
+    // Frame the cab together with the trip the first time it appears.
+    fitBounds([...stopCoordsRef.current, [driverLng, driverLat]], 56);
+  }, [addMarker, driverLabel, driverLat, driverLng, fitBounds, isLoaded]);
+
+  useEffect(() => () => {
+    driverMarkerRef.current?.remove?.();
+    driverMarkerRef.current = null;
+  }, []);
 
   const stopCount = Math.max(0, routeStops.filter(stop => stop.kind === 'stop').length);
 

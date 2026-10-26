@@ -20,6 +20,7 @@ export interface SupabaseDriver {
   odometer_required: boolean | null;
   location_lat: number | null;
   location_lng: number | null;
+  vehicle_class: string | null;
   created_at: string;
 }
 
@@ -31,6 +32,7 @@ export interface SupabaseBooking {
   pickup: string | null;
   drop: string | null;
   trip_type: string | null;
+  vehicle_class: string | null;
   status: string | null;
   fare: number | null;
   driver_id: number | null;
@@ -78,6 +80,8 @@ export interface CashHandover {
 export interface OrgPricing {
   id: number;
   org_id: string;
+  city_base_fare: number | null;
+  outstation_per_day: number | null;
   city_per_km: number | null;
   outstation_per_km: number | null;
   airport_flat_fare: number | null;
@@ -87,6 +91,7 @@ export interface OrgPricing {
   night_surcharge_pct: number | null;
   driver_stay_per_night: number | null;
   waiting_per_hour: number | null;
+  updated_at: string | null;
 }
 
 export function useDrivers() {

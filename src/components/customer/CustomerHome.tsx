@@ -1,16 +1,27 @@
-import { useState } from 'react';
-import { Car, MapPin, Clock, Star, ChevronRight, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Car, MapPin, Clock, Star, ChevronRight, Loader2, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { BookingFlow } from './BookingFlow';
+import { TrackBooking } from './TrackBooking';
 import { useFixedRoutes, useLastBooking, tripTypeIcons } from '@/hooks/useSupabaseData';
 import { useDriversPublic } from '@/hooks/useDriversPublic';
 import { useOrg } from '@/hooks/useOrg';
+import { isClosedStatus, useBookingStatus } from '@/hooks/useBookingStatus';
+import {
+  clearSavedTrackingToken,
+  clearTrackingTokenFromUrl,
+  readSavedTrackingToken,
+  readTrackingTokenFromUrl,
+} from '@/lib/trackingStorage';
 
-type View = 'home' | 'booking';
+type View = 'home' | 'booking' | 'track';
 
 export function CustomerHome() {
-  const [view, setView] = useState<View>('home');
+  // A tracking link (?track=<token>) opens the live map straight away.
+  const [trackToken, setTrackToken] = useState<string | null>(() => readTrackingTokenFromUrl());
+  const [view, setView] = useState<View>(() => (readTrackingTokenFromUrl() ? 'track' : 'home'));
+  const [savedToken] = useState<string | null>(() => readSavedTrackingToken());
   const [repeatData, setRepeatData] = useState<typeof lastBooking>(null);
   const { org } = useOrg();
   const { data: routes = [], isLoading: routesLoading } = useFixedRoutes();
@@ -18,6 +29,29 @@ export function CustomerHome() {
   const { data: lastBooking } = useLastBooking();
 
   const freeCount = drivers.filter(d => d.status === 'free').length;
+
+  // The latest booking made on this device, offered as "Track your ride" while it is still open.
+  const { data: savedBooking } = useBookingStatus(view === 'home' ? savedToken : null, { poll: false });
+  const savedBookingClosed = savedBooking === null || isClosedStatus(savedBooking?.status);
+  useEffect(() => {
+    if (savedToken && savedBookingClosed) clearSavedTrackingToken();
+  }, [savedToken, savedBookingClosed]);
+
+  const closeTracking = () => {
+    clearTrackingTokenFromUrl();
+    setTrackToken(null);
+    setView('home');
+  };
+
+  if (view === 'track' && trackToken) {
+    return (
+      <div className="min-h-screen bg-background px-6 py-6">
+        <div className="max-w-md mx-auto">
+          <TrackBooking token={trackToken} onDone={closeTracking} />
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'booking') return <BookingFlow onBack={() => { setRepeatData(null); setView('home'); }} initialData={repeatData} />;
 
@@ -57,6 +91,28 @@ export function CustomerHome() {
           </div>
         </div>
       </div>
+
+      {savedToken && savedBooking && !savedBookingClosed && (
+        <div className="max-w-md mx-auto px-6 -mt-4 mb-8 relative z-10">
+          <button
+            onClick={() => { setTrackToken(savedToken); setView('track'); }}
+            className="w-full text-left bg-card rounded-xl p-4 flex items-center justify-between gap-3 border shadow-elevated"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-secondary/10 flex items-center justify-center">
+                <Navigation className="h-4 w-4 text-secondary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Track your ride</p>
+                <p className="text-xs text-muted-foreground">
+                  {savedBooking.driver ? `${savedBooking.driver.name ?? 'Your driver'} is assigned` : 'Finding your driver'} · #{savedBooking.id}
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          </button>
+        </div>
+      )}
 
       {/* Quick Stats */}
       <div className="max-w-md mx-auto px-6 -mt-4">

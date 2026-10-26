@@ -8,7 +8,7 @@ import { useOrg } from '@/hooks/useOrg';
 import { supabase } from '@/integrations/supabase/client';
 import { queueAssignmentMessage } from '@/lib/customerAutomation';
 import { olaGeocode } from '@/lib/olaMaps';
-import { rankDrivers, type RankedDriver } from '@/lib/dispatch';
+import { rankDrivers, vehicleClassLabel, type RankedDriver, type VehicleClass } from '@/lib/dispatch';
 
 interface DispatchEngineProps {
   booking: SupabaseBooking | null;
@@ -61,6 +61,7 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
     if (!open || !booking || !org) return;
 
     const scheduledAt = booking.scheduled_at ?? new Date().toISOString();
+    const neededClass: VehicleClass = booking.vehicle_class === '6_seater' ? '6_seater' : '4_seater';
 
     const build = async () => {
       setChecking(true);
@@ -74,7 +75,7 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
       const conflicts = Object.fromEntries(freeDrivers.map((d, i) => [d.id, conflictList[i]]));
       const pickup = place ? { lat: place.lat, lng: place.lng } : null;
 
-      setCandidates(rankDrivers(freeDrivers, pickup, conflicts, formatConflictTime));
+      setCandidates(rankDrivers(freeDrivers, pickup, conflicts, formatConflictTime, neededClass));
       setChecking(false);
     };
 
@@ -83,8 +84,9 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
 
   if (!booking) return null;
 
-  const available = candidates.filter(d => !d.isBusy);
+  const available = candidates.filter(d => !d.isBusy && !d.isIncompatible);
   const busy      = candidates.filter(d => d.isBusy);
+  const tooSmall  = candidates.filter(d => d.isIncompatible);
   const topPick   = available[0];
 
   const handleAssign = async (driverId: number) => {
@@ -194,7 +196,7 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
                     </div>
                     <div>
                       <p className="text-sm font-bold">{topPick.name ?? 'Unknown'}</p>
-                      <p className="text-xs text-muted-foreground">{topPick.vehicle_model ?? 'N/A'}</p>
+                      <p className="text-xs text-muted-foreground">{topPick.vehicle_model ?? 'N/A'} · {vehicleClassLabel[topPick.vehicle_class === '6_seater' ? '6_seater' : '4_seater']}</p>
                       <p className="text-xs text-success font-medium">{topPick.reason}</p>
                     </div>
                   </div>
@@ -309,6 +311,37 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
                         </div>
                         <span className="text-xs px-2 py-1 rounded-full bg-destructive/10 text-destructive border border-destructive/20 font-medium">
                           Busy
+                        </span>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── WRONG CAR SIZE section ────────────────────────────────── */}
+            {tooSmall.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 mt-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Car too small ({tooSmall.length})
+                  </h4>
+                </div>
+                <div className="space-y-2">
+                  {tooSmall.map((driver) => (
+                    <Card key={driver.id} className="p-3 opacity-60 bg-muted/30">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">
+                            {getDriverInitials(driver.name)}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-muted-foreground">{driver.name ?? 'Unknown'}</p>
+                            <p className="text-xs text-muted-foreground">{driver.reason}</p>
+                          </div>
+                        </div>
+                        <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground border font-medium">
+                          {vehicleClassLabel['4_seater']}
                         </span>
                       </div>
                     </Card>
