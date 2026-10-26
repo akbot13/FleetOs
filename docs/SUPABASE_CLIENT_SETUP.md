@@ -140,3 +140,21 @@ Frontend variables (set in the hosting provider or local `.env`). Names only:
 - [ ] The edge function returns `deliveries` for a test call. [Supabase action]
 - [ ] After the lockdown, anon can no longer read `drivers`, and driver login still works through the lookup function. [Supabase action]
 - [ ] Delete any test bookings afterwards. [Supabase action]
+
+## Deploying database changes
+
+Every change to the database goes in a new file under `supabase/migrations/`. After applying one, run:
+
+```bash
+npm run db:check
+```
+
+It checks, with the public key only, that the live database has every column and function the app expects and that private tables stay closed. A failed check usually means a migration wasn't applied. That's how the April migration went missing, which broke booking, dispatch and driver confirm.
+
+**Prefer the CLI over pasting into the SQL editor.** `npx supabase db push` applies only the migrations the database hasn't recorded yet. The migrations so far were pasted into the SQL editor, so the database doesn't know about them. Mark them as applied once, from the repo folder, before the first `db push`:
+
+```bash
+npx supabase migration repair --status applied 20260312135554 20260312141230 20260312141249 20260313114815 20260313 20260326000000 20260402010000 20261025000000 20261025010000 20261025020000 20261025030000 --linked
+```
+
+After that, the routine is: add a migration file, run `npx supabase db push`, then `npm run db:check`.

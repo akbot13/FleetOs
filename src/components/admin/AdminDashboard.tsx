@@ -15,6 +15,7 @@ import { CollectionsHistory } from './CollectionsHistory';
 import { NewBookingSheet } from './NewBookingSheet';
 import { BentoStats } from './BentoStats';
 import { DriverFleetList } from './DriverFleetList';
+import { DriverPinControl } from './DriverPinControl';
 import { MapPanel } from './MapPanel';
 import type { ActiveTab } from './AdminShell';
 import { OfflineIndicator } from '@/components/ui/OfflineIndicator';
@@ -74,7 +75,7 @@ function PendingHandovers() {
   useEffect(() => {
     if (!org) return;
     const fetch = async () => {
-      const client = supabase as any;
+      const client = supabase;
       const res = await client
         .from('cash_handovers_v2')
         .select('*')
@@ -110,7 +111,7 @@ function PendingHandovers() {
                 size="sm"
                 className="bg-success text-success-foreground hover:bg-success/90 rounded-lg text-xs"
                 onClick={async () => {
-                  await ((supabase as any).from('cash_handovers_v2'))
+                  await (supabase.from('cash_handovers_v2'))
                     .update({ admin_approved: true })
                     .eq('id', h.id);
                   setHandovers(prev => prev.filter(x => x.id !== h.id));
@@ -125,7 +126,7 @@ function PendingHandovers() {
                 variant="outline"
                 className="border-destructive text-destructive hover:bg-destructive/10 rounded-lg text-xs"
                 onClick={async () => {
-                  await ((supabase as any).from('cash_handovers_v2'))
+                  await (supabase.from('cash_handovers_v2'))
                     .update({ admin_notes: 'Flagged for review' })
                     .eq('id', h.id);
                   setHandovers(prev => prev.filter(x => x.id !== h.id));
@@ -216,8 +217,8 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
   };
 
   const getLastUpdated = (driver: any) => {
-    if (!(driver as any).updated_at) return 'Unknown';
-    const mins = Math.round((Date.now() - new Date((driver as any).updated_at).getTime()) / 60000);
+    if (!driver.updated_at) return 'Unknown';
+    const mins = Math.round((Date.now() - new Date(driver.updated_at).getTime()) / 60000);
     if (mins < 1) return 'Just now';
     if (mins < 60) return `${mins} min ago`;
     return `${Math.round(mins / 60)} hr ago`;
@@ -241,9 +242,9 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
   const getDriverCashToday = (driverId: number) =>
     bookings.filter(
       b => b.driver_id === driverId &&
-        (b as any).payment_confirmed_at?.startsWith(todayDate) &&
+        b.payment_confirmed_at?.startsWith(todayDate) &&
         b.payment_method === 'cash'
-    ).reduce((s, b) => s + ((b as any).amount_collected ?? 0), 0);
+    ).reduce((s, b) => s + (b.amount_collected ?? 0), 0);
 
   const freeCount = drivers.filter(d => d.status === 'free').length;
   const onTripCount = drivers.filter(d => d.status === 'on-trip').length;
@@ -306,7 +307,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
   const saveBookingNotes = async () => {
     if (!notesBooking) return;
     setNotesSaving(true);
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from('bookings')
       .update({ notes: notesDraft.trim() || null })
       .eq('id', notesBooking.id);
@@ -328,7 +329,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
   const handleApprove = async (driver: SupabaseDriver, isTemporary = false) => {
     const model = vehicleSelections[driver.id] || 'Maruti Swift';
     setApprovalLoading(prev => ({ ...prev, [driver.id]: true }));
-    const db = supabase as any;
+    const db = supabase;
     const { error } = await db
       .from('drivers')
       .update({ status: 'free', vehicle_model: model, is_temporary: isTemporary })
@@ -344,7 +345,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
 
   const handleReject = async (driver: SupabaseDriver) => {
     setApprovalLoading(prev => ({ ...prev, [driver.id]: true }));
-    const { error } = await (supabase as any).from('drivers').delete().eq('id', driver.id);
+    const { error } = await supabase.from('drivers').delete().eq('id', driver.id);
     if (error) {
       toast.error(error.message);
     } else {
@@ -359,7 +360,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
     setPaymentLoading(true);
     setPaymentError(null);
 
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from('bookings')
       .update({
         amount_collected: Number(paymentAmount),
@@ -705,14 +706,14 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                       <Button size="icon" variant="outline" className="h-9 w-9 rounded-lg" onClick={(e) => e.stopPropagation()}>
                         <Phone className="h-3.5 w-3.5" />
                       </Button>
-                      {(driver as any).is_temporary && (
+                      {driver.is_temporary && (
                         <Button
                           size="sm"
                           variant="outline"
                           className="h-9 border-destructive text-destructive hover:bg-destructive/10 rounded-lg text-xs"
                           onClick={async (e) => {
                             e.stopPropagation();
-                            await (supabase as any).from('drivers').delete().eq('id', driver.id);
+                            await supabase.from('drivers').delete().eq('id', driver.id);
                             queryClient.invalidateQueries({ queryKey: ['drivers'] });
                             toast(`${driver.name ?? 'Driver'} removed`);
                           }}
@@ -746,6 +747,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                         <span>Last updated</span>
                         <span className="font-medium text-gray-800">{getLastUpdated(driver)}</span>
                       </div>
+                      <DriverPinControl driverId={driver.id} driverName={driver.name} />
                       {driver.location_lat && (
                         <>
                           <div className="flex justify-between text-xs text-gray-500">

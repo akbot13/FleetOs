@@ -8,96 +8,113 @@ import { supabase } from '@/integrations/supabase/client';
 import { DriverApp } from '@/components/driver/DriverApp';
 import { useOrg } from '@/hooks/useOrg';
 
-type Screen = 'phone' | 'otp' | 'holding' | 'app';
+type Screen = 'phone' | 'pin' | 'register' | 'holding' | 'app';
 
-export function DriverLoginPage() {
+const isActive = (status: string | null | undefined) => status === 'free' || status === 'on-trip';
+
+export function DriverLoginPage({ onSignedIn }: { onSignedIn?: () => void } = {}) {
   const [screen, setScreen] = useState<Screen>('phone');
   const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
+  const [pin, setPin] = useState('');
   const [driverName, setDriverName] = useState('');
   const [foundDriver, setFoundDriver] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { org } = useOrg();
-useEffect(() => {
-    const savedDriver = sessionStorage.getItem('fleetos_driver');
-    const savedScreen = sessionStorage.getItem('fleetos_driver_screen');
-    if (!savedDriver || !savedScreen) return;
 
+  useEffect(() => {
+    const savedDriver = localStorage.getItem('fleetos_driver');
+    const savedScreen = localStorage.getItem('fleetos_driver_screen');
+    if (!savedDriver || !savedScreen) return;
     const parsed = JSON.parse(savedDriver);
 
-    // Always fetch fresh status from Supabase — admin may have approved/rejected
-    (supabase as any)
+    // Re-read the driver with the signed-in session: the admin may have approved, changed
+    // the PIN (which signs the driver out) or removed them.
+    supabase
       .from('drivers')
-      .select('*')
+      .select('id, org_id, name, phone, vehicle_model, plate_number, status, is_temporary, odometer_required')
       .eq('id', parsed.id)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (!data) {
-          // Driver deleted — clear session
-          sessionStorage.removeItem('fleetos_driver');
-          sessionStorage.removeItem('fleetos_driver_screen');
+          localStorage.removeItem('fleetos_driver');
+          localStorage.removeItem('fleetos_driver_screen');
           return;
         }
-
-        // Update sessionStorage with fresh data
-        const freshScreen: Screen =
-          data.status === 'free' || data.status === 'on-trip' ? 'app' : 'holding';
-
-        sessionStorage.setItem('fleetos_driver', JSON.stringify(data));
-        sessionStorage.setItem('fleetos_driver_screen', freshScreen);
-
+        const freshScreen: Screen = isActive(data.status) ? 'app' : 'holding';
+        localStorage.setItem('fleetos_driver', JSON.stringify(data));
+        localStorage.setItem('fleetos_driver_screen', freshScreen);
         setFoundDriver(data);
         setScreen(freshScreen);
       });
   }, []);
-  const handleSendOtp = async () => {
-    setLoading(true);
-    setError(null);
-    const db = supabase as any;
-    const { data } = await db
-      .from('drivers')
-      .select('*')
-      .eq('org_id', org!.id)
-      .ilike('phone', `%${phone.slice(-10)}`)
-      .maybeSingle();
-    setFoundDriver(data);
-    setScreen('otp');
-    setLoading(false);
+
+  // Drivers sign in with phone + PIN on top of an anonymous session; the database links the
+  // session to the driver only when the PIN matches.
+  const ensureSession = async () => {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) return true;
+    const { error: authError } = await supabase.auth.signInAnonymously();
+    if (authError) {
+      setError("Driver sign-in isn't switched on yet. Ask your fleet manager.");
+      return false;
+    }
+    return true;
   };
 
-   const handleVerify = () => {
+  const handleContinue = () => {
     setError(null);
-    if (otp.length < 6) {
-      setError('Enter 6-digit code');
+    if (!org) {
+      setError('Fleet details are still loading. Try again in a moment.');
       return;
     }
-    if (foundDriver) {
-      if (foundDriver.status === 'free' || foundDriver.status === 'on-trip') {
-        sessionStorage.setItem('fleetos_driver', JSON.stringify(foundDriver));
-        sessionStorage.setItem('fleetos_driver_screen', 'app');
-        setScreen('app');
-      } else if (foundDriver.status === 'pending_approval') {
-        sessionStorage.setItem('fleetos_driver', JSON.stringify(foundDriver));
-        sessionStorage.setItem('fleetos_driver_screen', 'holding');
-        setScreen('holding');
-      }
+    setScreen('pin');
+  };
+
+  const handleVerify = async () => {
+    setError(null);
+    if (pin.length < 6) {
+      setError('Enter your 6-digit PIN');
+      return;
     }
+    setLoading(true);
+    if (!(await ensureSession())) { setLoading(false); return; }
+    const { data: rows, error: signInError } = await supabase.rpc('driver_sign_in', {
+      p_org_id: org!.id, p_phone: phone, p_pin: pin,
+    });
+    setLoading(false);
+    const result = rows?.[0];
+    if (signInError || !result?.ok) {
+      setError(result?.message ?? "Couldn't sign in. Try again.");
+      setPin('');
+      return;
+    }
+    const driver = result.driver as { id: number; status: string | null } & Record<string, unknown>;
+    const next: Screen = isActive(driver.status) ? 'app' : 'holding';
+    localStorage.setItem('fleetos_driver', JSON.stringify(driver));
+    localStorage.setItem('fleetos_driver_screen', next);
+    setFoundDriver(driver);
+    setScreen(next);
+    if (next === 'app') onSignedIn?.();
   };
 
   const handleRegister = async () => {
-    setLoading(true);
     setError(null);
-    const db = supabase as any;
-    await db.from('drivers').insert({
-      org_id: org!.id,
-      name: driverName,
-      phone: '+91' + phone,
-      status: 'pending_approval',
+    if (!org) {
+      setError('Fleet details are still loading. Try again in a moment.');
+      return;
+    }
+    setLoading(true);
+    const { data: rows, error: registerError } = await supabase.rpc('register_driver', {
+      p_org_id: org.id, p_phone: phone, p_name: driverName,
     });
-    sessionStorage.setItem('fleetos_driver_screen', 'holding');
-    setScreen('holding');
     setLoading(false);
+    const result = rows?.[0];
+    if (registerError || !result?.ok) {
+      setError(result?.message ?? "Couldn't submit your details. Ask your fleet manager to add you.");
+      return;
+    }
+    setScreen('holding');
   };
 
   if (screen === 'app') {
@@ -151,37 +168,75 @@ useEffect(() => {
           <button
             className="w-full kinetic-gradient text-white font-bold font-display rounded-xl py-3 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-60"
             disabled={loading || phone.length !== 10}
-            onClick={handleSendOtp}
+            onClick={handleContinue}
           >
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Send OTP
+            Continue
           </button>
         </div>
       </div>
     );
   }
 
-  // screen === 'otp'
+  if (screen === 'register') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="w-full max-w-sm bg-card rounded-[2rem] shadow-elevated p-10 space-y-3">
+          <button
+            className="text-xs text-muted-foreground mb-1 flex items-center gap-1 hover:text-foreground transition-colors"
+            onClick={() => { setScreen('pin'); setError(null); }}
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+            Back
+          </button>
+          <h1 className="text-xl font-bold text-center">Join this fleet</h1>
+          <p className="text-sm text-muted-foreground text-center">
+            Your fleet manager approves you and gives you a PIN for +91 ••••••{phone.slice(-4)}.
+          </p>
+          <div>
+            <Label htmlFor="driverName" className="font-label text-sm text-muted-foreground">Full Name</Label>
+            <Input
+              id="driverName"
+              placeholder="e.g. Ramesh Kumar"
+              value={driverName}
+              onChange={e => setDriverName(e.target.value)}
+              className="bg-muted border-none rounded-xl mt-1"
+            />
+          </div>
+          {error && <p className="text-sm text-destructive text-center">{error}</p>}
+          <button
+            className="w-full kinetic-gradient text-white font-bold font-display rounded-xl py-3 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-60"
+            disabled={loading || !driverName.trim()}
+            onClick={handleRegister}
+          >
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            Register
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // screen === 'pin'
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-sm bg-card rounded-[2rem] shadow-elevated p-10">
         <button
           className="text-xs text-muted-foreground mb-4 flex items-center gap-1 hover:text-foreground transition-colors"
-          onClick={() => { setScreen('phone'); setOtp(''); setError(null); }}
+          onClick={() => { setScreen('phone'); setPin(''); setError(null); }}
         >
           <ChevronLeft className="h-3.5 w-3.5" />
           Back
         </button>
 
         <div className="text-center mb-6">
-          <h1 className="text-xl font-bold">Enter OTP</h1>
+          <h1 className="text-xl font-bold">Enter your PIN</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Code sent to +91 ••••••{phone.slice(-4)}
+            6-digit PIN from your fleet manager for +91 ••••••{phone.slice(-4)}
           </p>
         </div>
 
         <div className="flex justify-center mb-4">
-          <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+          <InputOTP maxLength={6} value={pin} onChange={setPin}>
             <InputOTPGroup>
               <InputOTPSlot index={0} />
               <InputOTPSlot index={1} />
@@ -198,37 +253,18 @@ useEffect(() => {
         <button
           className="w-full kinetic-gradient text-white font-bold font-display rounded-xl py-3 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-60 mb-4"
           onClick={handleVerify}
-          disabled={otp.length < 6}
+          disabled={loading || pin.length < 6}
         >
-          Verify
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          Sign in
         </button>
 
-        {/* Name registration — only when driver not found and OTP is complete */}
-        {!foundDriver && otp.length === 6 && (
-          <div className="border-t pt-4 mt-2 space-y-3">
-            <p className="text-sm text-muted-foreground text-center">
-              Phone not registered. Enter your name to register.
-            </p>
-            <div>
-              <Label htmlFor="driverName" className="font-label text-sm text-muted-foreground">Full Name</Label>
-              <Input
-                id="driverName"
-                placeholder="e.g. Ramesh Kumar"
-                value={driverName}
-                onChange={e => setDriverName(e.target.value)}
-                className="bg-muted border-none rounded-xl mt-1"
-              />
-            </div>
-            <button
-              className="w-full kinetic-gradient text-white font-bold font-display rounded-xl py-3 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-60"
-              disabled={loading || !driverName.trim()}
-              onClick={handleRegister}
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Register
-            </button>
-          </div>
-        )}
+        <button
+          className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => { setScreen('register'); setError(null); }}
+        >
+          New driver? Register to join this fleet
+        </button>
       </div>
     </div>
   );

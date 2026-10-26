@@ -35,14 +35,6 @@ interface BookingStatusSnapshot {
   driver: AssignedDriverSnapshot | null;
 }
 
-const fareEstimates: Record<string, number> = {
-  local: 180,
-  airport: 450,
-  city_tour: 2200,
-  intercity: 3200,
-  multiday: 5500,
-};
-
 const tripTypeToDb: Record<string, string> = {
   local: 'city',
   city_tour: 'sightseeing',
@@ -51,41 +43,66 @@ const tripTypeToDb: Record<string, string> = {
   airport: 'airport',
 };
 
+// The booking request sent to the database. The fare is not part of it: quote_fare() and
+// create_customer_booking() compute it from the fleet's rate card.
+function bookingRequest(data: BookingFormData) {
+  // No date means "now"; the database fills that in, which also keeps this request stable
+  // between renders so the fare quote isn't refetched on every render.
+  const scheduledAt = data.date && data.time
+    ? new Date(`${data.date}T${data.time}`).toISOString()
+    : null;
+
+  return {
+    customer_name: data.customerName || null,
+    customer_phone: data.customerPhone
+      ? '+91' + data.customerPhone.replace(/\D/g, '').slice(-10)
+      : null,
+    pickup: data.pickup,
+    drop: data.tripType === 'city_tour' ? (data.stops[0] || null) : data.drop,
+    scheduled_at: scheduledAt,
+    trip_type: tripTypeToDb[data.tripType] ?? data.tripType,
+    notes: data.notes?.trim() || null,
+    stops: data.tripType === 'city_tour' && data.stops.length > 0
+      ? JSON.stringify(data.stops)
+      : null,
+    estimated_hours: data.tripType === 'city_tour' ? data.estimatedHours : null,
+    return_date: data.isRoundTrip && data.returnDate
+      ? new Date(data.returnDate).toISOString()
+      : null,
+    number_of_days: (data.tripType === 'multiday' || data.tripType === 'intercity') ? data.numberOfDays : null,
+    driver_stay_required: data.tripType === 'multiday' ? data.driverStayRequired : null,
+  };
+}
+
 export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
   const [payment, setPayment] = useState<PaymentMethod>('cash');
   const [submitting, setSubmitting] = useState(false);
   const [bookingId, setBookingId] = useState<number | null>(null);
+  // Private token from create_customer_booking; customers can't read the bookings table directly.
+  const [trackingToken, setTrackingToken] = useState<string | null>(null);
   const { toast } = useToast();
   const { org } = useOrg();
 
   const { data: liveBooking } = useQuery({
-    queryKey: ['customer-booking-status', bookingId],
-    enabled: bookingId !== null,
+    queryKey: ['customer-booking-status', trackingToken],
+    enabled: trackingToken !== null,
     queryFn: async () => {
-      if (bookingId === null) return null;
+      if (trackingToken === null) return null;
 
-      const db = supabase as any;
-      const { data: booking, error } = await db
-        .from('bookings')
-        .select('id, status, scheduled_at, pickup, drop, driver_id')
-        .eq('id', bookingId)
-        .maybeSingle();
-
+      const db = supabase;
+      const { data: rows, error } = await db.rpc('get_booking_status', { p_token: trackingToken });
       if (error) throw error;
+      const booking = rows?.[0];
       if (!booking) return null;
 
-      let driver: AssignedDriverSnapshot | null = null;
-      if (booking.driver_id) {
-        const { data: driverRow, error: driverError } = await db
-          .from('drivers')
-          .select('name, phone, vehicle_model, plate_number')
-          .eq('id', booking.driver_id)
-          .maybeSingle();
-
-        if (!driverError) {
-          driver = (driverRow ?? null) as AssignedDriverSnapshot | null;
-        }
-      }
+      const driver: AssignedDriverSnapshot | null = booking.driver_name
+        ? {
+            name: booking.driver_name,
+            phone: booking.driver_phone,
+            vehicle_model: booking.vehicle_model,
+            plate_number: booking.plate_number,
+          } as AssignedDriverSnapshot
+        : null;
 
       return {
         id: booking.id,
@@ -103,7 +120,16 @@ export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
   });
 
   const tripInfo = tripTypeConfig.find((t) => t.id === data.tripType);
-  const fare = fareEstimates[data.tripType] ?? 0;
+  const request = bookingRequest(data);
+  const { data: fare, isError: fareFailed } = useQuery({
+    queryKey: ['fare-quote', org?.id, request],
+    enabled: !!org?.id,
+    queryFn: async () => {
+      const { data: quote, error } = await supabase.rpc('quote_fare', { p_org_id: org!.id, p_booking: request });
+      if (error) throw error;
+      return Number(quote);
+    },
+  });
   const airportTerminal = `${data.hubCity || 'City'} Airport`;
   const previewPickup = data.tripType === 'airport' && data.airportDirection === 'arriving'
     ? airportTerminal
@@ -124,58 +150,15 @@ export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
         throw new Error('Organisation not loaded yet. Refresh and try again.');
       }
 
-      const scheduledAt = data.date && data.time
-        ? new Date(`${data.date}T${data.time}`).toISOString()
-        : new Date().toISOString();
+      const payload = { ...request, payment_method: payment };
 
-      const payload = {
-        org_id: org.id,
-        customer_name: data.customerName || null,
-        customer_phone: data.customerPhone
-          ? '+91' + data.customerPhone.replace(/\D/g, '').slice(-10)
-          : null,
-        pickup: data.pickup,
-        drop: data.tripType === 'city_tour' ? (data.stops[0] || null) : data.drop,
-        scheduled_at: scheduledAt,
-        trip_type: tripTypeToDb[data.tripType] ?? data.tripType,
-        fare,
-        payment_method: payment,
-        status: 'pending',
-        notes: data.notes?.trim() || null,
-        stops: data.tripType === 'city_tour' && data.stops.length > 0
-          ? JSON.stringify(data.stops)
-          : null,
-        estimated_hours: data.tripType === 'city_tour' ? data.estimatedHours : null,
-        return_date: data.isRoundTrip && data.returnDate
-          ? new Date(data.returnDate).toISOString()
-          : null,
-        number_of_days: (data.tripType === 'multiday' || data.tripType === 'intercity') ? data.numberOfDays : null,
-        driver_stay_required: data.tripType === 'multiday' ? data.driverStayRequired : null,
-      };
-
-      const db = supabase as any;
-      let response = await db
-        .from('bookings')
-        .insert(payload)
-        .select('id')
-        .single();
-
-      if (response.error && /row-level security/i.test(response.error.message ?? '')) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData.session) {
-          const { error: authError } = await supabase.auth.signInAnonymously();
-          if (authError) throw authError;
-
-          response = await db
-            .from('bookings')
-            .insert(payload)
-            .select('id')
-            .single();
-        }
-      }
-
-      if (response.error) throw response.error;
-      setBookingId(response.data?.id ?? Math.floor(Math.random() * 90000) + 10000);
+      const db = supabase;
+      const { data: rows, error } = await db.rpc('create_customer_booking', { p_org_id: org.id, p_booking: payload });
+      if (error) throw error;
+      const created = rows?.[0];
+      if (!created?.booking_id) throw new Error('The booking was not saved. Please try again.');
+      setBookingId(created.booking_id);
+      setTrackingToken(created.booking_token);
     } catch (err: any) {
       console.error('Booking error:', err);
       toast({ title: 'Booking failed', description: err.message, variant: 'destructive' });
@@ -317,7 +300,7 @@ export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
       <Card className="p-5 shadow-elevated rounded-xl">
         <div className="flex items-center justify-between mb-1">
           <span className="text-sm text-muted-foreground">Estimated Fare</span>
-          <span className="text-2xl font-bold">₹{fare.toLocaleString()}</span>
+          <span className="text-2xl font-bold">{fare !== undefined ? `₹${fare.toLocaleString()}` : fareFailed ? 'Unavailable' : '…'}</span>
         </div>
         <p className="text-xs text-muted-foreground">Final fare may vary based on route and stops</p>
       </Card>

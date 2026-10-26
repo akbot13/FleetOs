@@ -29,7 +29,7 @@ interface OrgMessagingConfig {
 async function logCustomerMessage(customerPhone: string | null, intent: string, message: string) {
   if (!customerPhone || !message.trim()) return;
 
-  const db = supabase as any;
+  const db = supabase;
   const { error } = await db.from('messages_log').insert({
     customer_phone: customerPhone,
     intent,
@@ -44,18 +44,19 @@ async function logCustomerMessage(customerPhone: string | null, intent: string, 
 }
 
 async function dispatchCustomerMessage(
-  customerPhone: string | null,
+  booking: BookingLike,
   intent: string,
   message: string,
   channels: DispatchChannel[] = ['sms', 'whatsapp']
 ) {
-  await logCustomerMessage(customerPhone, intent, message);
+  await logCustomerMessage(booking.customer_phone, intent, message);
 
-  if (!customerPhone || !message.trim()) return;
+  if (!booking.customer_phone || !message.trim()) return;
 
+  // The function sends to the booking's own customer phone, looked up server-side.
   const { error } = await supabase.functions.invoke('customer-comms-dispatch', {
     body: {
-      customerPhone,
+      bookingId: booking.id,
       intent,
       message,
       channels,
@@ -100,7 +101,7 @@ export async function queueAssignmentMessage(
     vehicleLine,
   ].filter(Boolean);
 
-  await dispatchCustomerMessage(booking.customer_phone, 'driver_assigned', lines.join('\n'));
+  await dispatchCustomerMessage(booking, 'driver_assigned', lines.join('\n'));
 }
 
 export async function queueFeedbackMessage(
@@ -118,7 +119,7 @@ export async function queueFeedbackMessage(
     reviewLine,
   ];
 
-  await dispatchCustomerMessage(booking.customer_phone, 'trip_completed_feedback', lines.join('\n'));
+  await dispatchCustomerMessage(booking, 'trip_completed_feedback', lines.join('\n'));
 }
 
 export async function queueInvoiceMessage(
@@ -141,5 +142,5 @@ export async function queueInvoiceMessage(
     lines.push(`Paid to UPI ID: ${org.upi_id}`);
   }
 
-  await dispatchCustomerMessage(booking.customer_phone, 'invoice_sent', lines.join('\n'));
+  await dispatchCustomerMessage(booking, 'invoice_sent', lines.join('\n'));
 }

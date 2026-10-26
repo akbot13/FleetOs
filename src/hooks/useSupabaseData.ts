@@ -6,7 +6,7 @@ import { useOrg } from './useOrg';
 // db() casts to any so new tables (drivers, bookings, cash_handovers_v2, etc.)
 // work before Supabase types are regenerated post-migration.
 // Remove this cast once `supabase gen types typescript` is run after migration.
-const db = supabase as any;
+const db = supabase;
 
 export interface SupabaseDriver {
   id: number;

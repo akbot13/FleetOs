@@ -110,3 +110,10 @@
     -webkit-backdrop-filter: blur(24px);
   }
 }
+
+/* Leaflet panes use z-index 400-1000. Keep them inside the map's own stacking
+   context so map overlays, dialogs, sheets and headers stay on top. */
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0;
+}

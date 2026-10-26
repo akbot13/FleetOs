@@ -7,6 +7,8 @@ import { useDrivers, tripTypeIcons, getDriverInitials, type SupabaseDriver, type
 import { useOrg } from '@/hooks/useOrg';
 import { supabase } from '@/integrations/supabase/client';
 import { queueAssignmentMessage } from '@/lib/customerAutomation';
+import { olaGeocode } from '@/lib/olaMaps';
+import { rankDrivers, type RankedDriver } from '@/lib/dispatch';
 
 interface DispatchEngineProps {
   booking: SupabaseBooking | null;
@@ -15,14 +17,7 @@ interface DispatchEngineProps {
   onAssign: (bookingId: number, driverId: number) => void;
 }
 
-interface DriverCandidate extends SupabaseDriver {
-  distanceKm: number;
-  etaMinutes: number;
-  score: number;
-  reason: string;
-  isBusy: boolean;
-  conflictTime?: string; // ISO string of conflicting booking
-}
+type DriverCandidate = RankedDriver<SupabaseDriver>;
 
 // ── Conflict check ────────────────────────────────────────────────────────────
 // Returns the conflicting booking's scheduled_at if driver is busy, else null
@@ -31,7 +26,7 @@ async function getConflict(driverId: number, tripTime: string, orgId: string): P
   const windowStart = new Date(t - 2 * 60 * 60 * 1000).toISOString(); // -2hr
   const windowEnd   = new Date(t + 4 * 60 * 60 * 1000).toISOString(); // +4hr
 
-  const { data } = await (supabase as any)
+  const { data } = await supabase
     .from('bookings')
     .select('id, scheduled_at')
     .eq('org_id', orgId)
@@ -71,37 +66,15 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
       setChecking(true);
       const freeDrivers = drivers.filter(d => d.status === 'free');
 
-      const results: DriverCandidate[] = await Promise.all(
-        freeDrivers.map(async (driver, i) => {
-          const conflictAt = await getConflict(driver.id, scheduledAt, org.id);
-          const distanceKm = +(1.5 + i * 2.3).toFixed(1);
-          const etaMinutes = Math.round(distanceKm * 3.2);
-          const score      = conflictAt ? 0 : Math.max(+(100 - distanceKm * 5).toFixed(0), 20);
-          const reason     = conflictAt
-            ? `Busy at ${formatConflictTime(conflictAt)}`
-            : i === 0 ? 'Nearest + available'
-            : i === 1 ? 'Moderate distance'
-            : 'Fallback option';
+      // Real distances: place the pickup on the map, then measure from each driver's last GPS fix.
+      const [place, conflictList] = await Promise.all([
+        booking.pickup ? olaGeocode(booking.pickup).catch(() => null) : Promise.resolve(null),
+        Promise.all(freeDrivers.map(d => getConflict(d.id, scheduledAt, org.id))),
+      ]);
+      const conflicts = Object.fromEntries(freeDrivers.map((d, i) => [d.id, conflictList[i]]));
+      const pickup = place ? { lat: place.lat, lng: place.lng } : null;
 
-          return {
-            ...driver,
-            distanceKm,
-            etaMinutes,
-            score,
-            reason,
-            isBusy: !!conflictAt,
-            conflictTime: conflictAt ?? undefined,
-          };
-        })
-      );
-
-      // Available first (by score desc), then busy
-      results.sort((a, b) => {
-        if (a.isBusy !== b.isBusy) return a.isBusy ? 1 : -1;
-        return b.score - a.score;
-      });
-
-      setCandidates(results);
+      setCandidates(rankDrivers(freeDrivers, pickup, conflicts, formatConflictTime));
       setChecking(false);
     };
 
@@ -119,7 +92,7 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
     setError(null);
     try {
       const selectedDriver = candidates.find(candidate => candidate.id === driverId) ?? drivers.find(driver => driver.id === driverId);
-      const db = supabase as any;
+      const db = supabase;
       const { error: bookingError } = await db
         .from('bookings')
         .update({
@@ -226,8 +199,8 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold">{topPick.distanceKm} km</p>
-                    <p className="text-xs text-muted-foreground">{topPick.etaMinutes} min ETA</p>
+                    <p className="text-sm font-bold">{topPick.distanceKm != null ? `${topPick.distanceKm} km` : 'Distance unknown'}</p>
+                    {topPick.etaMinutes != null && <p className="text-xs text-muted-foreground">~{topPick.etaMinutes} min ETA</p>}
                   </div>
                 </div>
                 <Button
@@ -270,12 +243,18 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
                       <div>
                         <p className="text-sm font-semibold">{driver.name ?? 'Unknown'}</p>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-0.5">
-                            <Navigation className="h-3 w-3" />{driver.distanceKm} km
-                          </span>
-                          <span className="flex items-center gap-0.5">
-                            <Clock className="h-3 w-3" />{driver.etaMinutes} min
-                          </span>
+                          {driver.distanceKm != null ? (
+                            <>
+                              <span className="flex items-center gap-0.5">
+                                <Navigation className="h-3 w-3" />{driver.distanceKm} km
+                              </span>
+                              <span className="flex items-center gap-0.5">
+                                <Clock className="h-3 w-3" />~{driver.etaMinutes} min
+                              </span>
+                            </>
+                          ) : (
+                            <span>{driver.reason}</span>
+                          )}
                         </div>
                       </div>
                     </div>

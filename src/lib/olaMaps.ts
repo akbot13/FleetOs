@@ -8,6 +8,9 @@ declare global {
 
 const LEAFLET_JS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
 const LEAFLET_CSS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+// Integrity hashes of the official 1.9.4 files: the browser refuses a changed copy from the CDN.
+const LEAFLET_JS_SRI = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+const LEAFLET_CSS_SRI = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
 const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const OSM_ATTRIBUTION = '&copy; OpenStreetMap contributors';
 
@@ -57,7 +60,7 @@ export interface RouteDrawOptions {
   opacity?: number;
 }
 
-function appendStylesheet(href: string) {
+function appendStylesheet(href: string, integrity?: string) {
   const existing = document.querySelector(`link[data-fleetos-href="${href}"]`);
   if (existing) return;
 
@@ -65,6 +68,10 @@ function appendStylesheet(href: string) {
   link.rel = 'stylesheet';
   link.href = href;
   link.setAttribute('data-fleetos-href', href);
+  if (integrity) {
+    link.integrity = integrity;
+    link.crossOrigin = 'anonymous';
+  }
   document.head.appendChild(link);
 }
 
@@ -77,10 +84,12 @@ function loadLeaflet(): Promise<void> {
       return;
     }
 
-    appendStylesheet(LEAFLET_CSS_URL);
+    appendStylesheet(LEAFLET_CSS_URL, LEAFLET_CSS_SRI);
 
     const script = document.createElement('script');
     script.src = LEAFLET_JS_URL;
+    script.integrity = LEAFLET_JS_SRI;
+    script.crossOrigin = 'anonymous';
     script.async = true;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error('Failed to load the map runtime'));
