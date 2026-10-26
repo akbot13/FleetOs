@@ -73,6 +73,7 @@ export type Database = {
           trip_completed_at: string | null
           trip_started_at: string | null
           trip_type: string | null
+          vehicle_class: string
         }
         Insert: {
           amount_collected?: number | null
@@ -107,6 +108,7 @@ export type Database = {
           trip_completed_at?: string | null
           trip_started_at?: string | null
           trip_type?: string | null
+          vehicle_class?: string
         }
         Update: {
           amount_collected?: number | null
@@ -141,6 +143,7 @@ export type Database = {
           trip_completed_at?: string | null
           trip_started_at?: string | null
           trip_type?: string | null
+          vehicle_class?: string
         }
         Relationships: [
           {
@@ -482,6 +485,7 @@ export type Database = {
           is_temporary: boolean | null
           location_lat: number | null
           location_lng: number | null
+          location_updated_at: string | null
           odometer_end_photo: string | null
           odometer_start_photo: string | null
           name: string | null
@@ -491,6 +495,7 @@ export type Database = {
           plate_number: string | null
           status: string | null
           vehicle_model: string | null
+          vehicle_class: string
         }
         Insert: {
           auth_user_id?: string | null
@@ -499,6 +504,7 @@ export type Database = {
           is_temporary?: boolean | null
           location_lat?: number | null
           location_lng?: number | null
+          location_updated_at?: string | null
           odometer_end_photo?: string | null
           odometer_start_photo?: string | null
           name?: string | null
@@ -508,6 +514,7 @@ export type Database = {
           plate_number?: string | null
           status?: string | null
           vehicle_model?: string | null
+          vehicle_class?: string
         }
         Update: {
           auth_user_id?: string | null
@@ -516,6 +523,7 @@ export type Database = {
           is_temporary?: boolean | null
           location_lat?: number | null
           location_lng?: number | null
+          location_updated_at?: string | null
           odometer_end_photo?: string | null
           odometer_start_photo?: string | null
           name?: string | null
@@ -525,6 +533,7 @@ export type Database = {
           plate_number?: string | null
           status?: string | null
           vehicle_model?: string | null
+          vehicle_class?: string
         }
         Relationships: [
           {
@@ -712,11 +721,13 @@ export type Database = {
       org_pricing: {
         Row: {
           airport_flat_fare: number | null
+          city_base_fare: number | null
           city_per_km: number | null
           driver_stay_per_night: number | null
           id: number
           night_surcharge_pct: number | null
           org_id: string
+          outstation_per_day: number | null
           outstation_per_km: number | null
           sedan_multiplier: number | null
           sightseeing_per_hour: number | null
@@ -726,11 +737,13 @@ export type Database = {
         }
         Insert: {
           airport_flat_fare?: number | null
+          city_base_fare?: number | null
           city_per_km?: number | null
           driver_stay_per_night?: number | null
           id?: number
           night_surcharge_pct?: number | null
           org_id: string
+          outstation_per_day?: number | null
           outstation_per_km?: number | null
           sedan_multiplier?: number | null
           sightseeing_per_hour?: number | null
@@ -740,11 +753,13 @@ export type Database = {
         }
         Update: {
           airport_flat_fare?: number | null
+          city_base_fare?: number | null
           city_per_km?: number | null
           driver_stay_per_night?: number | null
           id?: number
           night_surcharge_pct?: number | null
           org_id?: string
+          outstation_per_day?: number | null
           outstation_per_km?: number | null
           sedan_multiplier?: number | null
           sightseeing_per_hour?: number | null
@@ -924,6 +939,7 @@ export type Database = {
           org_id: string | null
           status: string | null
           vehicle_model: string | null
+          vehicle_class: string | null
         }
         Insert: {
           id?: number | null
@@ -931,6 +947,7 @@ export type Database = {
           org_id?: string | null
           status?: string | null
           vehicle_model?: string | null
+          vehicle_class?: string | null
         }
         Update: {
           id?: number | null
@@ -938,6 +955,7 @@ export type Database = {
           org_id?: string | null
           status?: string | null
           vehicle_model?: string | null
+          vehicle_class?: string | null
         }
         Relationships: [
           {
@@ -970,6 +988,9 @@ export type Database = {
       get_booking_status: {
         Args: { p_token: string }
         Returns: {
+          driver_lat: number
+          driver_location_at: string
+          driver_lng: number
           driver_name: string
           driver_phone: string
           drop: string

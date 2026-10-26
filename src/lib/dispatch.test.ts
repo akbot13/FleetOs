@@ -41,4 +41,22 @@ describe('rankDrivers', () => {
     const unknownPickup = rankDrivers([withGps], null, {});
     expect(unknownPickup[0]).toMatchObject({ distanceKm: null, reason: 'Pickup not on map' });
   });
+
+  it('ranks a 4-seater after every compatible driver when the trip needs a 6-seater', () => {
+    const smallNear = { ...driver(1, 26.913, 75.788), vehicle_class: '4_seater' };
+    const bigFar = { ...driver(2, 26.99, 75.79), vehicle_class: '6_seater' };
+    const bigBusy = { ...driver(3, 26.92, 75.79), vehicle_class: '6_seater' };
+    const ranked = rankDrivers([smallNear, bigBusy, bigFar], pickup, { 3: '2026-10-25T10:00:00Z' }, undefined, '6_seater');
+    expect(ranked.map(d => d.id)).toEqual([2, 3, 1]);
+    expect(ranked[2]).toMatchObject({ isIncompatible: true, score: 0, reason: '4-seater · trip needs 6-seater' });
+    expect(ranked[0].isIncompatible).toBe(false);
+  });
+
+  it('treats a missing vehicle_class as a 4-seater', () => {
+    const unknownClass = driver(1, 26.913, 75.788);
+    const ranked = rankDrivers([unknownClass], pickup, {}, undefined, '6_seater');
+    expect(ranked[0]).toMatchObject({ isIncompatible: true, score: 0 });
+    expect(rankDrivers([unknownClass], pickup, {}, undefined, '4_seater')[0].isIncompatible).toBe(false);
+    expect(rankDrivers([unknownClass], pickup, {})[0].isIncompatible).toBe(false);
+  });
 });

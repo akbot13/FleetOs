@@ -15,6 +15,7 @@ import { CollectionsHistory } from './CollectionsHistory';
 import { NewBookingSheet } from './NewBookingSheet';
 import { BentoStats } from './BentoStats';
 import { DriverFleetList } from './DriverFleetList';
+import { vehicleClassLabel, type VehicleClass } from '@/lib/dispatch';
 import { DriverPinControl } from './DriverPinControl';
 import { MapPanel } from './MapPanel';
 import type { ActiveTab } from './AdminShell';
@@ -200,6 +201,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [vehicleSelections, setVehicleSelections] = useState<Record<number, string>>({});
+  const [classSelections, setClassSelections] = useState<Record<number, VehicleClass>>({});
   const [approvalLoading, setApprovalLoading] = useState<Record<number, boolean>>({});
   const [detailBooking, setDetailBooking] = useState<SupabaseBooking | null>(null);
   const [notesBooking, setNotesBooking] = useState<SupabaseBooking | null>(null);
@@ -328,11 +330,12 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
 
   const handleApprove = async (driver: SupabaseDriver, isTemporary = false) => {
     const model = vehicleSelections[driver.id] || 'Maruti Swift';
+    const vehicleClass = classSelections[driver.id] ?? '4_seater';
     setApprovalLoading(prev => ({ ...prev, [driver.id]: true }));
     const db = supabase;
     const { error } = await db
       .from('drivers')
-      .update({ status: 'free', vehicle_model: model, is_temporary: isTemporary })
+      .update({ status: 'free', vehicle_model: model, vehicle_class: vehicleClass, is_temporary: isTemporary })
       .eq('id', driver.id);
     if (error) {
       toast.error(error.message);
@@ -642,9 +645,20 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                           <p className="text-xs text-muted-foreground">{driver.phone}</p>
                           <p className="text-xs text-muted-foreground">Joined {new Date(driver.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
                         </div>
-                        <select value={vehicleSelections[driver.id] || 'Maruti Swift'} onChange={e => setVehicleSelections(prev => ({ ...prev, [driver.id]: e.target.value }))} className="text-xs border rounded px-2 py-1">
-                          {['Maruti Swift', 'Toyota Innova', 'Mahindra Scorpio', 'Tata Nexon', 'Maruti Ertiga', 'Other'].map(v => <option key={v}>{v}</option>)}
-                        </select>
+                        <div className="flex flex-col gap-1.5">
+                          <select value={vehicleSelections[driver.id] || 'Maruti Swift'} onChange={e => setVehicleSelections(prev => ({ ...prev, [driver.id]: e.target.value }))} className="text-xs border rounded px-2 py-1">
+                            {['Maruti Swift', 'Toyota Innova', 'Mahindra Scorpio', 'Tata Nexon', 'Maruti Ertiga', 'Other'].map(v => <option key={v}>{v}</option>)}
+                          </select>
+                          <select
+                            aria-label="Car size"
+                            value={classSelections[driver.id] ?? '4_seater'}
+                            onChange={e => setClassSelections(prev => ({ ...prev, [driver.id]: e.target.value as VehicleClass }))}
+                            className="text-xs border rounded px-2 py-1"
+                          >
+                            <option value="4_seater">{vehicleClassLabel['4_seater']}</option>
+                            <option value="6_seater">{vehicleClassLabel['6_seater']}</option>
+                          </select>
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <Button size="sm" onClick={() => handleApprove(driver, false)} disabled={approvalLoading[driver.id]} className="flex-1 bg-success text-success-foreground hover:bg-success/90 rounded-lg text-xs">
@@ -687,7 +701,12 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-bold">{driver.name ?? 'Unknown'}</p>
-                      <p className="text-xs text-muted-foreground">{driver.vehicle_model ?? 'N/A'} · {driver.plate_number ?? 'N/A'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {driver.vehicle_model ?? 'N/A'} · {driver.plate_number ?? 'N/A'}
+                        <span className="ml-2 px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-semibold text-foreground">
+                          {vehicleClassLabel[driver.vehicle_class === '6_seater' ? '6_seater' : '4_seater']}
+                        </span>
+                      </p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-xs font-medium capitalize">{(driver.status ?? 'offline').replace('-', ' ')}</span>
                         {handover && (

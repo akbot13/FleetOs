@@ -9,6 +9,7 @@ import { LoginPage } from '@/components/auth/LoginPage';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { hasApprovedDriverSession, normalizeAppView, type AppView } from '@/lib/viewAccess';
+import { readTrackingTokenFromUrl } from '@/lib/trackingStorage';
 import { Car, Settings, DollarSign, LogOut, Loader2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -56,6 +57,8 @@ function readStoredDriver() {
 const Index = () => {
   const [view, setView] = useState<AppView>(() => {
     if (typeof window === 'undefined') return 'customer';
+    // A tracking link is for customers whatever view this browser last used.
+    if (readTrackingTokenFromUrl()) return 'customer';
     return normalizeAppView(localStorage.getItem('fleetos_view'));
   });
 

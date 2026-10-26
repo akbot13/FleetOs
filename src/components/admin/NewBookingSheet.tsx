@@ -12,6 +12,7 @@ import { useOrg } from '@/hooks/useOrg';
 import { queueAssignmentMessage } from '@/lib/customerAutomation';
 import { LocationInput } from '@/components/customer/LocationInput';
 import { TripPreviewMap } from '@/components/maps/TripPreviewMap';
+import { vehicleClassLabel, type VehicleClass } from '@/lib/dispatch';
 
 interface NewBookingSheetProps {
   open: boolean;
@@ -24,6 +25,7 @@ interface FormValues {
   countryCode: string;
   customerPhone: string;
   tripType: 'city' | 'airport' | 'sightseeing' | 'outstation';
+  vehicleClass: VehicleClass;
   pickup: string;
   drop: string;
   date: string;
@@ -49,6 +51,7 @@ export function NewBookingSheet({ open, onClose, drivers }: NewBookingSheetProps
       countryCode: '+91',
       customerPhone: '',
       tripType: 'city',
+      vehicleClass: '4_seater',
       pickup: '',
       drop: '',
       date: today,
@@ -89,6 +92,21 @@ export function NewBookingSheet({ open, onClose, drivers }: NewBookingSheetProps
       : null;
     const status = assignedDriver ? 'confirmed' : 'pending';
 
+    // An empty fare means "charge the rate card", so the admin sees the same price a customer would.
+    let fare = parseFloat(data.fare) || null;
+    if (fare === null) {
+      const { data: quote, error: quoteError } = await supabase.rpc('quote_fare', {
+        p_org_id: org!.id,
+        p_booking: { trip_type: data.tripType, vehicle_class: data.vehicleClass, scheduled_at: scheduledAt },
+      });
+      if (quoteError) {
+        setSubmitError(quoteError.message);
+        setSubmitLoading(false);
+        return;
+      }
+      fare = Number(quote);
+    }
+
     const db = supabase;
     const { data: insertedBooking, error } = await db
       .from('bookings')
@@ -97,10 +115,11 @@ export function NewBookingSheet({ open, onClose, drivers }: NewBookingSheetProps
         customer_name: data.customerName,
         customer_phone: normalizedPhone ? `${data.countryCode}${normalizedPhone}` : null,
         trip_type: data.tripType,
+        vehicle_class: data.vehicleClass,
         pickup: data.pickup,
         drop: data.drop,
         scheduled_at: scheduledAt,
-        fare: parseFloat(data.fare) || null,
+        fare,
         driver_id: data.driverId ? parseInt(data.driverId, 10) : null,
         payment_method: data.paymentMethod,
         status,
@@ -194,6 +213,17 @@ export function NewBookingSheet({ open, onClose, drivers }: NewBookingSheetProps
             </div>
 
             <div>
+              <label className="mb-1.5 block text-sm font-medium">Car size</label>
+              <select
+                {...register('vehicleClass')}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="4_seater">{vehicleClassLabel['4_seater']} (sedan, up to 4)</option>
+                <option value="6_seater">{vehicleClassLabel['6_seater']} (SUV, up to 6)</option>
+              </select>
+            </div>
+
+            <div>
               <label className="mb-1.5 block text-sm font-medium">Pickup</label>
               <input type="hidden" {...register('pickup', { required: true })} />
               <LocationInput
@@ -231,7 +261,7 @@ export function NewBookingSheet({ open, onClose, drivers }: NewBookingSheetProps
               <label className="mb-1.5 block text-sm font-medium">Fare</label>
               <div className="flex items-center gap-2">
                 <span className="rounded-md border border-input bg-muted px-3 py-2 text-sm font-medium text-muted-foreground">Rs</span>
-                <Input type="number" placeholder="0" {...register('fare')} className="flex-1" />
+                <Input type="number" placeholder="Leave empty for the rate card fare" {...register('fare')} className="flex-1" />
               </div>
             </div>
 

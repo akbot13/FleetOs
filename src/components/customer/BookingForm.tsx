@@ -7,6 +7,7 @@ import { LocationInput } from './LocationInput';
 import { TripType } from './TripTypeSelector';
 import { TripPreviewMap } from '@/components/maps/TripPreviewMap';
 import { cn } from '@/lib/utils';
+import type { VehicleClass } from '@/lib/dispatch';
 
 export interface BookingFormData {
   pickup: string;
@@ -18,6 +19,7 @@ export interface BookingFormData {
   customerPhone: string;
   hubCity: string;
   passengerCount: number;
+  vehicleClass: VehicleClass;
   notes: string;
   // Airport
   airportDirection: 'arriving' | 'departing';
@@ -44,6 +46,7 @@ export const defaultFormData: BookingFormData = {
   hubCity: 'Jaipur',
   numberOfDays: 1,
   passengerCount: 1,
+  vehicleClass: '4_seater',
   notes: '',
   airportDirection: 'arriving',
   flightNumber: '',
@@ -62,6 +65,10 @@ interface BookingFormProps {
 
 export function BookingForm({ data, onChange, onNext }: BookingFormProps) {
   const update = (partial: Partial<BookingFormData>) => onChange({ ...data, ...partial });
+  // A 4-seater only takes four passengers, so a bigger group is moved to the 6-seater.
+  const setPassengers = (count: number) =>
+    update({ passengerCount: count, ...(count > 4 ? { vehicleClass: '6_seater' as const } : {}) });
+  const needsSixSeater = data.passengerCount > 4;
   const airportTerminal = `${data.hubCity || 'City'} Airport`;
   const previewPickup = data.tripType === 'airport' && data.airportDirection === 'arriving'
     ? airportTerminal
@@ -324,14 +331,14 @@ export function BookingForm({ data, onChange, onNext }: BookingFormProps) {
         <label className="text-xs text-muted-foreground mb-2 block">Number of passengers</label>
         <div className="flex items-center gap-4">
           <button
-            onClick={() => update({ passengerCount: Math.max(1, data.passengerCount - 1) })}
+            onClick={() => setPassengers(Math.max(1, data.passengerCount - 1))}
             className="h-10 w-10 rounded-lg border flex items-center justify-center hover:bg-muted transition text-lg font-bold"
           >
             −
           </button>
           <span className="text-xl font-bold w-6 text-center">{data.passengerCount}</span>
           <button
-            onClick={() => update({ passengerCount: Math.min(20, data.passengerCount + 1) })}
+            onClick={() => setPassengers(Math.min(6, data.passengerCount + 1))}
             className="h-10 w-10 rounded-lg border flex items-center justify-center hover:bg-muted transition text-lg font-bold"
           >
             +
@@ -340,6 +347,36 @@ export function BookingForm({ data, onChange, onNext }: BookingFormProps) {
             {data.passengerCount === 1 ? '1 person' : `${data.passengerCount} people`}
           </span>
         </div>
+      </div>
+
+      {/* Car size */}
+      <div>
+        <label className="text-xs text-muted-foreground mb-2 block">Car size</label>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { id: '4_seater' as VehicleClass, label: '4-seater', detail: 'Sedan · up to 4' },
+            { id: '6_seater' as VehicleClass, label: '6-seater', detail: 'SUV · up to 6' },
+          ]).map(option => (
+            <button
+              key={option.id}
+              type="button"
+              disabled={option.id === '4_seater' && needsSixSeater}
+              onClick={() => update({ vehicleClass: option.id })}
+              className={cn(
+                'rounded-xl border p-3 text-left transition disabled:opacity-50',
+                data.vehicleClass === option.id
+                  ? 'border-secondary bg-secondary/10'
+                  : 'border-border bg-card hover:bg-muted'
+              )}
+            >
+              <p className="text-sm font-semibold">{option.label}</p>
+              <p className="text-xs text-muted-foreground">{option.detail}</p>
+            </button>
+          ))}
+        </div>
+        {needsSixSeater && (
+          <p className="mt-2 text-xs text-muted-foreground">6-seater needed for 5+ passengers</p>
+        )}
       </div>
 
       {/* Customer details */}

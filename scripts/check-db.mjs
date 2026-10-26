@@ -27,11 +27,12 @@ const denied = (res) => res.body?.code === '42501';
 
 // What each migration adds that the app depends on.
 const columns = {
-  bookings: ['notes', 'driver_confirmed_at', 'tracking_token'],
+  bookings: ['notes', 'driver_confirmed_at', 'tracking_token', 'vehicle_class'],
   organizations: ['upi_id', 'upi_qr_url', 'google_review_url'],
-  drivers: ['auth_user_id', 'odometer_start_photo', 'odometer_end_photo'],
+  drivers: ['auth_user_id', 'odometer_start_photo', 'odometer_end_photo', 'location_updated_at', 'vehicle_class'],
+  org_pricing: ['city_base_fare', 'outstation_per_day'],
   driver_cash_entries: ['kind', 'method', 'label', 'booking_id'],
-  drivers_public: ['org_id'],
+  drivers_public: ['org_id', 'vehicle_class'],
 };
 const zero = '00000000-0000-0000-0000-000000000000';
 const functions = {

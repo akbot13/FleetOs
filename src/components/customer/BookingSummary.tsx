@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, CalendarDays, Clock, CheckCircle } from 'lucide-react';
+import { MapPin, CalendarDays, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { BookingFormData } from './BookingForm';
@@ -10,6 +10,9 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useOrg } from '@/hooks/useOrg';
+import { vehicleClassLabel } from '@/lib/dispatch';
+import { saveTrackingToken } from '@/lib/trackingStorage';
+import { TrackBooking } from './TrackBooking';
 
 interface BookingSummaryProps {
   data: BookingFormData;
@@ -18,22 +21,6 @@ interface BookingSummaryProps {
 }
 
 type PaymentMethod = 'cash' | 'upi' | 'card';
-
-interface AssignedDriverSnapshot {
-  name: string | null;
-  phone: string | null;
-  vehicle_model: string | null;
-  plate_number: string | null;
-}
-
-interface BookingStatusSnapshot {
-  id: number;
-  status: string | null;
-  scheduled_at: string | null;
-  pickup: string | null;
-  drop: string | null;
-  driver: AssignedDriverSnapshot | null;
-}
 
 const tripTypeToDb: Record<string, string> = {
   local: 'city',
@@ -61,6 +48,7 @@ function bookingRequest(data: BookingFormData) {
     drop: data.tripType === 'city_tour' ? (data.stops[0] || null) : data.drop,
     scheduled_at: scheduledAt,
     trip_type: tripTypeToDb[data.tripType] ?? data.tripType,
+    vehicle_class: data.vehicleClass,
     notes: data.notes?.trim() || null,
     stops: data.tripType === 'city_tour' && data.stops.length > 0
       ? JSON.stringify(data.stops)
@@ -77,47 +65,10 @@ function bookingRequest(data: BookingFormData) {
 export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
   const [payment, setPayment] = useState<PaymentMethod>('cash');
   const [submitting, setSubmitting] = useState(false);
-  const [bookingId, setBookingId] = useState<number | null>(null);
   // Private token from create_customer_booking; customers can't read the bookings table directly.
   const [trackingToken, setTrackingToken] = useState<string | null>(null);
   const { toast } = useToast();
   const { org } = useOrg();
-
-  const { data: liveBooking } = useQuery({
-    queryKey: ['customer-booking-status', trackingToken],
-    enabled: trackingToken !== null,
-    queryFn: async () => {
-      if (trackingToken === null) return null;
-
-      const db = supabase;
-      const { data: rows, error } = await db.rpc('get_booking_status', { p_token: trackingToken });
-      if (error) throw error;
-      const booking = rows?.[0];
-      if (!booking) return null;
-
-      const driver: AssignedDriverSnapshot | null = booking.driver_name
-        ? {
-            name: booking.driver_name,
-            phone: booking.driver_phone,
-            vehicle_model: booking.vehicle_model,
-            plate_number: booking.plate_number,
-          } as AssignedDriverSnapshot
-        : null;
-
-      return {
-        id: booking.id,
-        status: booking.status,
-        scheduled_at: booking.scheduled_at,
-        pickup: booking.pickup,
-        drop: booking.drop,
-        driver,
-      } as BookingStatusSnapshot;
-    },
-    refetchInterval: (query) => {
-      const snapshot = query.state.data as BookingStatusSnapshot | null | undefined;
-      return snapshot?.driver ? false : 15000;
-    },
-  });
 
   const tripInfo = tripTypeConfig.find((t) => t.id === data.tripType);
   const request = bookingRequest(data);
@@ -157,7 +108,8 @@ export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
       if (error) throw error;
       const created = rows?.[0];
       if (!created?.booking_id) throw new Error('The booking was not saved. Please try again.');
-      setBookingId(created.booking_id);
+      // Keep the token so the live map can be reopened later from this device.
+      saveTrackingToken(created.booking_token);
       setTrackingToken(created.booking_token);
     } catch (err: any) {
       console.error('Booking error:', err);
@@ -167,66 +119,14 @@ export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
     }
   };
 
-  if (bookingId !== null) {
-    const assignedDriver = liveBooking?.driver ?? null;
-    const liveDrop = liveBooking?.drop ?? data.drop ?? 'Tour';
-    const routeLabel = liveBooking
-      ? `${liveBooking.pickup ?? data.pickup} -> ${liveDrop}`
-      : `${data.pickup} -> ${data.drop || 'Tour'}`;
-
+  if (trackingToken !== null) {
     return (
-      <div className="text-center py-12 animate-slide-up">
-        <div className="h-20 w-20 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-6">
-          <CheckCircle className="h-10 w-10 text-success" />
-        </div>
-        <h2 className="text-xl font-bold mb-2">Booking Confirmed!</h2>
-        <p className="text-sm text-muted-foreground mb-1">Booking ID: #{bookingId}</p>
-        <p className="text-sm text-muted-foreground mb-1">
-          {tripInfo?.emoji} {tripInfo?.label}: {routeLabel}
-        </p>
-        <p className="text-sm text-muted-foreground mb-6">
-          {data.date} at {data.time}
-        </p>
-
-        <Card className="p-4 shadow-card rounded-xl text-left mb-4 max-w-xs mx-auto">
-          <p className="text-xs text-muted-foreground mb-1">Trip status</p>
-          {!assignedDriver ? (
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold">DRV</div>
-              <p className="text-sm font-semibold text-muted-foreground">
-                Your driver and trip details will be shared with you on SMS and WhatsApp once the assignment is confirmed.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-secondary/10 flex items-center justify-center text-xs font-bold text-secondary-foreground">
-                  DRV
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{assignedDriver.name ?? 'Assigned driver'}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {[assignedDriver.vehicle_model, assignedDriver.plate_number].filter(Boolean).join(' · ') || 'Vehicle details shared'}
-                  </p>
-                </div>
-              </div>
-              {assignedDriver.phone && (
-                <p className="text-sm font-medium text-foreground">{assignedDriver.phone}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Driver and trip details have been queued for SMS and WhatsApp delivery.
-              </p>
-            </div>
-          )}
-        </Card>
-
-        <Button
-          onClick={onDone}
-          className="w-full h-12 bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-xl font-semibold max-w-xs mx-auto"
-        >
-          Back to Home
-        </Button>
-      </div>
+      <TrackBooking
+        token={trackingToken}
+        fallbackPickup={data.pickup}
+        fallbackDrop={data.drop || 'Tour'}
+        onDone={onDone}
+      />
     );
   }
 
@@ -291,6 +191,7 @@ export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
               {data.driverStayRequired && <span>Driver stay required</span>}
             </>
           )}
+          <span>{vehicleClassLabel[data.vehicleClass]}</span>
           {data.tripType === 'airport' && data.flightNumber && (
             <span>Flight {data.flightNumber}</span>
           )}

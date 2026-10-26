@@ -1,47 +1,170 @@
-import { useState } from 'react';
-import { DollarSign, Moon, TrendingUp, MapPin, Clock, Edit2, Save, RotateCcw } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { DollarSign, Loader2, Save } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
+import { useOrg } from '@/hooks/useOrg';
+import { useOrgPricing } from '@/hooks/useSupabaseData';
+import { vehicleClassLabel, type VehicleClass } from '@/lib/dispatch';
 
-interface PricingRule {
-  id: string;
-  tripType: string;
-  icon: string;
-  baseFare: number;
-  perKm: number;
-  perMin: number;
-  minFare: number;
-  nightSurcharge: number; // percentage
-  surgeMultiplier: number;
-  surgeActive: boolean;
+type FieldKey =
+  | 'city_base_fare'
+  | 'airport_flat_fare'
+  | 'sightseeing_per_hour'
+  | 'outstation_per_day'
+  | 'driver_stay_per_night'
+  | 'night_surcharge_pct'
+  | 'sedan_multiplier'
+  | 'suv_multiplier';
+
+interface FieldSpec {
+  key: FieldKey;
+  label: string;
+  hint: string;
+  // What quote_fare() charges while the field is empty.
+  fallback: number;
+  min: number;
+  max?: number;
+  step: string;
 }
 
-const initialRules: PricingRule[] = [
-  { id: 'city', tripType: 'City Ride', icon: '🚗', baseFare: 50, perKm: 14, perMin: 2, minFare: 100, nightSurcharge: 25, surgeMultiplier: 1.5, surgeActive: false },
-  { id: 'airport', tripType: 'Airport Transfer', icon: '✈️', baseFare: 100, perKm: 16, perMin: 2, minFare: 350, nightSurcharge: 30, surgeMultiplier: 1.3, surgeActive: false },
-  { id: 'sightseeing', tripType: 'Sightseeing', icon: '🏛️', baseFare: 500, perKm: 12, perMin: 1.5, minFare: 1500, nightSurcharge: 0, surgeMultiplier: 1.0, surgeActive: false },
-  { id: 'outstation', tripType: 'Outstation', icon: '🛣️', baseFare: 200, perKm: 11, perMin: 0, minFare: 1500, nightSurcharge: 20, surgeMultiplier: 1.0, surgeActive: false },
+const fareFields: FieldSpec[] = [
+  { key: 'city_base_fare', label: 'City ride base fare', hint: 'Rs per city ride', fallback: 180, min: 0, step: '1' },
+  { key: 'airport_flat_fare', label: 'Airport flat fare', hint: 'Rs per airport transfer', fallback: 450, min: 0, step: '1' },
+  { key: 'sightseeing_per_hour', label: 'Sightseeing per hour', hint: 'Rs per hour of the tour (4 hours if unspecified)', fallback: 550, min: 0, step: '1' },
+  { key: 'outstation_per_day', label: 'Outstation per day', hint: 'Rs per day of an outstation trip', fallback: 3200, min: 0, step: '1' },
+  { key: 'driver_stay_per_night', label: 'Driver stay per night', hint: 'Rs per night, when the driver has to stay over', fallback: 0, min: 0, step: '1' },
+  { key: 'night_surcharge_pct', label: 'Night surcharge %', hint: 'Added to pickups from 10 PM to 6 AM India time', fallback: 0, min: 0, max: 100, step: '1' },
 ];
 
-const nightHours = { from: '11:00 PM', to: '5:00 AM' };
+const sizeFields: FieldSpec[] = [
+  { key: 'sedan_multiplier', label: '4-seater multiplier', hint: 'Sedan, up to 4 passengers. 1 means the fares above unchanged', fallback: 1, min: 0.5, max: 5, step: '0.05' },
+  { key: 'suv_multiplier', label: '6-seater multiplier', hint: 'SUV, up to 6 passengers. 1.3 means 30% above the 4-seater fare', fallback: 1.3, min: 0.5, max: 5, step: '0.05' },
+];
+
+const allFields = [...fareFields, ...sizeFields];
+
+type FormState = Record<FieldKey, string>;
+
+const emptyForm = Object.fromEntries(allFields.map(f => [f.key, ''])) as FormState;
+
+const tripTypes = [
+  { id: 'city', label: 'City ride' },
+  { id: 'airport', label: 'Airport transfer' },
+  { id: 'sightseeing', label: 'Sightseeing (4 hrs)' },
+  { id: 'outstation', label: 'Outstation (1 day)' },
+] as const;
+
+const carSizes: VehicleClass[] = ['4_seater', '6_seater'];
+
+// Sample quotes use a 10:00 AM India-time pickup today, so the night surcharge never applies.
+function sampleScheduledAt() {
+  const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+  return `${istNow.toISOString().slice(0, 10)}T10:00:00+05:30`;
+}
 
 export function PricingEngine() {
-  const [rules, setRules] = useState(initialRules);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [hasChanges, setHasChanges] = useState(false);
+  const { org } = useOrg();
+  const { data: pricing, isLoading } = useOrgPricing();
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [saving, setSaving] = useState(false);
 
-  const updateRule = (id: string, field: keyof PricingRule, value: number | boolean) => {
-    setRules(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
-    setHasChanges(true);
+  const saved = useMemo<FormState>(() => {
+    const next = { ...emptyForm };
+    if (pricing) {
+      for (const f of allFields) {
+        const value = pricing[f.key];
+        next[f.key] = value == null ? '' : String(value);
+      }
+    }
+    return next;
+  }, [pricing]);
+
+  useEffect(() => {
+    setForm(saved);
+  }, [saved]);
+
+  const errors = useMemo(() => {
+    const found: Partial<Record<FieldKey, string>> = {};
+    for (const f of allFields) {
+      const raw = form[f.key].trim();
+      if (raw === '') continue;
+      const n = Number(raw);
+      if (!Number.isFinite(n)) found[f.key] = 'Enter a number';
+      else if (n < f.min) found[f.key] = `Must be at least ${f.min}`;
+      else if (f.max !== undefined && n > f.max) found[f.key] = `Must be at most ${f.max}`;
+    }
+    return found;
+  }, [form]);
+
+  const hasErrors = Object.keys(errors).length > 0;
+  const hasChanges = allFields.some(f => form[f.key].trim() !== saved[f.key]);
+
+  const { data: samples, isFetching: samplesLoading, isError: samplesFailed } = useQuery({
+    queryKey: ['fare-quote', 'samples', org?.id, pricing?.updated_at ?? null],
+    enabled: !!org?.id,
+    queryFn: async () => {
+      const scheduledAt = sampleScheduledAt();
+      const rows = await Promise.all(
+        tripTypes.flatMap(t => carSizes.map(async size => {
+          const { data, error } = await supabase.rpc('quote_fare', {
+            p_org_id: org!.id,
+            p_booking: { trip_type: t.id, vehicle_class: size, scheduled_at: scheduledAt },
+          });
+          if (error) throw error;
+          return [`${t.id}:${size}`, Number(data)] as const;
+        })),
+      );
+      return Object.fromEntries(rows) as Record<string, number>;
+    },
+  });
+
+  const handleSave = async () => {
+    if (!org?.id || hasErrors || !hasChanges) return;
+    setSaving(true);
+    const values = Object.fromEntries(
+      allFields.map(f => [f.key, form[f.key].trim() === '' ? null : Number(form[f.key])]),
+    ) as Record<FieldKey, number | null>;
+
+    const { error } = await supabase
+      .from('org_pricing')
+      .upsert({ org_id: org.id, ...values, updated_at: new Date().toISOString() }, { onConflict: 'org_id' });
+    setSaving(false);
+
+    if (error) {
+      toast.error(`Could not save pricing: ${error.message}`);
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ['org_pricing', org.id] });
+    await queryClient.invalidateQueries({ queryKey: ['fare-quote'] });
+    toast('Pricing saved. New bookings use these rates.');
   };
 
-  const toggleSurge = (id: string) => {
-    updateRule(id, 'surgeActive', !rules.find(r => r.id === id)?.surgeActive);
-  };
+  const renderField = (f: FieldSpec) => (
+    <div key={f.key}>
+      <Label htmlFor={f.key} className="text-sm font-medium">{f.label}</Label>
+      <Input
+        id={f.key}
+        type="number"
+        inputMode="decimal"
+        min={f.min}
+        max={f.max}
+        step={f.step}
+        value={form[f.key]}
+        placeholder={String(f.fallback)}
+        onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+        className={errors[f.key] ? 'mt-1.5 border-destructive' : 'mt-1.5'}
+      />
+      <p className={errors[f.key] ? 'mt-1 text-xs text-destructive' : 'mt-1 text-xs text-muted-foreground'}>
+        {errors[f.key] ?? f.hint}
+      </p>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -52,139 +175,85 @@ export function PricingEngine() {
             <span className="text-sm font-semibold text-secondary tracking-wide uppercase">Pricing Engine</span>
           </div>
           <h1 className="text-xl font-bold text-primary-foreground">Fare Configuration</h1>
-          <p className="text-xs text-primary-foreground/60 mt-1">Set rates for all trip types. Changes reflect instantly.</p>
+          <p className="text-xs text-primary-foreground/60 mt-1">Set your rate card. Customers are charged these fares as soon as you save.</p>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 -mt-3 pb-8">
-        {/* Surge banner */}
-        {rules.some(r => r.surgeActive) && (
-          <Card className="p-3 mb-4 bg-warning/10 border-warning/30">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-warning" />
-              <span className="text-sm font-bold text-warning">Surge pricing active</span>
-              <span className="text-xs text-muted-foreground ml-auto">
-                {rules.filter(r => r.surgeActive).map(r => r.tripType).join(', ')}
-              </span>
-            </div>
-          </Card>
-        )}
-
-        {/* Night surcharge info */}
-        <Card className="p-3 mb-4 bg-muted/50">
-          <div className="flex items-center gap-2">
-            <Moon className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm">Night surcharge applies <span className="font-bold">{nightHours.from} – {nightHours.to}</span></span>
-          </div>
-        </Card>
-
-        {/* Save bar */}
-        {hasChanges && (
-          <div className="flex gap-2 mb-4">
-            <Button className="flex-1 bg-success text-success-foreground hover:bg-success/90" onClick={() => setHasChanges(false)}>
-              <Save className="h-4 w-4 mr-1" /> Save All Changes
-            </Button>
-            <Button variant="outline" onClick={() => { setRules(initialRules); setHasChanges(false); }}>
-              <RotateCcw className="h-4 w-4 mr-1" /> Reset
-            </Button>
-          </div>
-        )}
-
-        {/* Pricing cards */}
-        <div className="space-y-4">
-          {rules.map((rule) => (
-            <Card key={rule.id} className="p-5 shadow-card">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{rule.icon}</span>
-                  <h3 className="font-bold">{rule.tripType}</h3>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground">Surge</span>
-                    <Switch checked={rule.surgeActive} onCheckedChange={() => toggleSurge(rule.id)} />
-                  </div>
-                  <Button
-                    size="sm"
-                    variant={editing === rule.id ? 'default' : 'outline'}
-                    className="h-7 text-xs"
-                    onClick={() => setEditing(editing === rule.id ? null : rule.id)}
-                  >
-                    <Edit2 className="h-3 w-3 mr-1" />
-                    {editing === rule.id ? 'Done' : 'Edit'}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: 'Base Fare', field: 'baseFare' as const, prefix: '₹', value: rule.baseFare },
-                  { label: 'Per Km', field: 'perKm' as const, prefix: '₹', value: rule.perKm },
-                  { label: 'Per Min', field: 'perMin' as const, prefix: '₹', value: rule.perMin },
-                  { label: 'Min Fare', field: 'minFare' as const, prefix: '₹', value: rule.minFare },
-                  { label: 'Night +%', field: 'nightSurcharge' as const, prefix: '', value: rule.nightSurcharge },
-                  { label: 'Surge ×', field: 'surgeMultiplier' as const, prefix: '', value: rule.surgeMultiplier },
-                ].map(item => (
-                  <div key={item.label} className="p-3 bg-muted/30 rounded-lg">
-                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">{item.label}</Label>
-                    {editing === rule.id ? (
-                      <Input
-                        type="number"
-                        value={item.value}
-                        onChange={e => updateRule(rule.id, item.field, parseFloat(e.target.value) || 0)}
-                        className="h-8 mt-1 text-sm font-bold"
-                      />
-                    ) : (
-                      <p className="text-sm font-bold mt-1">
-                        {item.prefix}{item.value}{item.field === 'nightSurcharge' ? '%' : item.field === 'surgeMultiplier' ? '×' : ''}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {rule.surgeActive && (
-                <div className="mt-3 p-2 bg-warning/10 rounded-lg flex items-center gap-2">
-                  <TrendingUp className="h-3.5 w-3.5 text-warning" />
-                  <span className="text-xs font-semibold text-warning">
-                    Effective rate: ₹{(rule.perKm * rule.surgeMultiplier).toFixed(0)}/km (×{rule.surgeMultiplier})
-                  </span>
-                </div>
-              )}
-
-              {/* Fare estimator */}
-              <div className="mt-3 p-3 bg-primary/5 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Fare estimate: 10 km, 20 min ride</p>
-                <p className="text-sm font-bold">
-                  ₹{Math.max(rule.minFare, rule.baseFare + rule.perKm * 10 * (rule.surgeActive ? rule.surgeMultiplier : 1) + rule.perMin * 20).toFixed(0)}
-                </p>
+      <div className="max-w-5xl mx-auto px-6 -mt-3 pb-8 space-y-4">
+        {isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <>
+            <Card className="p-5 shadow-card rounded-xl">
+              <h2 className="text-sm font-bold mb-1">Base fares</h2>
+              <p className="text-xs text-muted-foreground mb-4">
+                An empty field uses the default shown in grey.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {fareFields.map(renderField)}
               </div>
             </Card>
-          ))}
-        </div>
 
-        {/* Outstation special config */}
-        <Card className="p-5 mt-4 shadow-card">
-          <h3 className="font-bold mb-3 flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-secondary" /> Outstation Special Rates
-          </h3>
-          <div className="space-y-3">
-            {[
-              { route: 'Jaipur → Delhi', km: 280, rate: 11, total: 3200 },
-              { route: 'Jaipur → Udaipur', km: 395, rate: 11.4, total: 4500 },
-              { route: 'Jaipur → Ajmer', km: 135, rate: 13.3, total: 1800 },
-              { route: 'Jaipur → Jodhpur', km: 335, rate: 11.9, total: 4000 },
-            ].map(r => (
-              <div key={r.route} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                <div>
-                  <p className="text-sm font-semibold">{r.route}</p>
-                  <p className="text-xs text-muted-foreground">{r.km} km · ₹{r.rate}/km</p>
-                </div>
-                <p className="font-bold">₹{r.total.toLocaleString()}</p>
+            <Card className="p-5 shadow-card rounded-xl">
+              <h2 className="text-sm font-bold mb-1">Car size</h2>
+              <p className="text-xs text-muted-foreground mb-4">
+                The base fare is multiplied by the size the customer picks.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {sizeFields.map(renderField)}
               </div>
-            ))}
-          </div>
-        </Card>
+            </Card>
+
+            <div className="flex items-center justify-end gap-3">
+              {hasChanges && !saving && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+              <Button onClick={handleSave} disabled={!hasChanges || hasErrors || saving}>
+                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                {saving ? 'Saving...' : 'Save pricing'}
+              </Button>
+            </div>
+
+            <Card className="p-5 shadow-card rounded-xl">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-sm font-bold">Sample fares</h2>
+                {samplesLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                What a customer is charged today at 10 AM, from the saved rates. Return trips double city and airport fares.
+              </p>
+              {samplesFailed ? (
+                <p className="text-sm text-destructive">Could not load sample fares.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground">
+                        <th className="pb-2 font-medium">Trip</th>
+                        {carSizes.map(size => (
+                          <th key={size} className="pb-2 font-medium text-right">{vehicleClassLabel[size]}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tripTypes.map(t => (
+                        <tr key={t.id} className="border-t">
+                          <td className="py-2">{t.label}</td>
+                          {carSizes.map(size => {
+                            const fare = samples?.[`${t.id}:${size}`];
+                            return (
+                              <td key={size} className="py-2 text-right font-semibold">
+                                {fare === undefined ? '...' : `₹${fare.toLocaleString('en-IN')}`}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );
