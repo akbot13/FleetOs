@@ -7,7 +7,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import {
-  OlaMapsApiError,
+  LocationSearchError,
   hasLocationSearchProvider,
   olaAutocomplete,
   olaPlaceDetails,
@@ -64,11 +64,12 @@ export function LocationInput({ value, onChange, placeholder, icon = 'drop' }: L
       } catch (error) {
         if (requestId !== requestIdRef.current) return;
 
-        if (error instanceof OlaMapsApiError && [401, 403].includes(error.status)) {
-          setSearchError('Primary location search is being rejected. FleetOs is trying the backup providers.');
-        } else {
-          setSearchError('Location suggestions are temporarily unavailable. You can still type the address manually.');
-        }
+        // Reached only after every provider has failed; name each one and how it failed.
+        setSearchError(
+          error instanceof LocationSearchError
+            ? `${error.message} You can still type the full address.`
+            : 'Address suggestions are unavailable right now. You can still type the full address.'
+        );
 
         setPredictions([]);
         setSearchOpen(false);
@@ -94,14 +95,9 @@ export function LocationInput({ value, onChange, placeholder, icon = 'drop' }: L
       const details = await olaPlaceDetails(prediction.place_id, prediction.description);
       onChange(details?.address || prediction.description);
       setSearchError(null);
-    } catch (error) {
+    } catch {
       onChange(prediction.description);
-
-      if (error instanceof OlaMapsApiError && [401, 403].includes(error.status)) {
-        setSearchError('Primary location search is being rejected. FleetOs kept the typed address and will continue with backup maps.');
-      } else {
-        setSearchError('Exact location lookup failed, so the typed address was kept as-is.');
-      }
+      setSearchError('Could not pin the exact place, so the address was kept as shown.');
     } finally {
       setLoading(false);
       setPredictions([]);

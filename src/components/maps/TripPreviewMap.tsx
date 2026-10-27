@@ -33,6 +33,7 @@ interface ResolvedRouteStop {
 }
 
 const JAIPUR_CENTER = { lat: 26.9124, lng: 75.7873 };
+const GEOCODE_DEBOUNCE_MS = 800;
 
 function createStopMarker(label: string, kind: RouteStopKind, order?: number): HTMLElement {
   const marker = document.createElement('div');
@@ -151,6 +152,8 @@ export function TripPreviewMap({
 
   const { addMarker, containerRef, drawRoute, error, fitBounds, isLoaded, providerLabel, removeRoute } = useOlaMaps(defaultCenter, 12);
 
+  // Wait for typing to pause before geocoding: each lookup can hit up to three providers, and
+  // the free OpenStreetMap server blocks apps that send it a request per keystroke.
   useEffect(() => {
     let cancelled = false;
 
@@ -180,10 +183,11 @@ export function TripPreviewMap({
       setIsResolving(false);
     };
 
-    void resolveStops();
+    const timer = window.setTimeout(() => void resolveStops(), GEOCODE_DEBOUNCE_MS);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [stopSignature]);
 

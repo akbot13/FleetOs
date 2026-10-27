@@ -490,11 +490,49 @@ export async function olaAutocomplete(input: string): Promise<OlaPlacePrediction
   try {
     return await nominatimAutocomplete(query);
   } catch (error) {
-    if (error instanceof OlaMapsApiError) errors.push(error);
+    errors.push(
+      error instanceof OlaMapsApiError
+        ? error
+        : new OlaMapsApiError('OpenStreetMap suggestions failed.', 0, 'nominatim')
+    );
   }
 
-  if (errors.length > 0) throw errors[0];
-  return [];
+  throw new LocationSearchError(errors);
+}
+
+// Every provider in the search chain failed. Holds each provider's own error, in the order tried.
+export class LocationSearchError extends Error {
+  failures: OlaMapsApiError[];
+
+  constructor(failures: OlaMapsApiError[]) {
+    super(describeSearchFailures(failures));
+    this.name = 'LocationSearchError';
+    this.failures = failures;
+  }
+}
+
+const providerNames: Record<FleetMapProvider | 'unknown', string> = {
+  ola: 'Ola Maps',
+  mappls: 'Mappls',
+  nominatim: 'OpenStreetMap',
+  osrm: 'OSRM',
+  leaflet: 'Leaflet',
+  unknown: 'Map search',
+};
+
+function describeFailure(error: OlaMapsApiError): string {
+  const name = providerNames[error.provider];
+  if (error.status === 401 || error.status === 403) return `${name} refused this site (${error.status})`;
+  if (error.status === 429) return `${name} is limiting requests (429)`;
+  if (error.status >= 500) return `${name} is down (${error.status})`;
+  if (error.status === 0) return `${name} could not be reached`;
+  return `${name} failed (${error.status})`;
+}
+
+// "Address search is unavailable: Ola Maps refused this site (403), Mappls is down (503)."
+export function describeSearchFailures(failures: OlaMapsApiError[]): string {
+  if (failures.length === 0) return 'Address search is unavailable.';
+  return `Address search is unavailable: ${failures.map(describeFailure).join(', ')}.`;
 }
 
 export async function olaPlaceDetails(
@@ -524,10 +562,32 @@ export async function olaPlaceDetails(
   return fallbackDescription ? olaGeocode(fallbackDescription) : null;
 }
 
-export async function olaGeocode(address: string): Promise<OlaPlaceDetails | null> {
-  const query = address.trim();
-  if (!query) return null;
+// Addresses already looked up this session, so editing the drop doesn't geocode the pickup again.
+// Misses are not kept: a provider that was down a minute ago may answer now.
+const geocodeCache = new Map<string, Promise<OlaPlaceDetails | null>>();
+const GEOCODE_CACHE_LIMIT = 200;
+const MIN_GEOCODE_LENGTH = 3;
 
+export function olaGeocode(address: string): Promise<OlaPlaceDetails | null> {
+  const query = address.trim();
+  if (query.length < MIN_GEOCODE_LENGTH) return Promise.resolve(null);
+
+  const key = query.toLowerCase();
+  const cached = geocodeCache.get(key);
+  if (cached) return cached;
+
+  if (geocodeCache.size >= GEOCODE_CACHE_LIMIT) {
+    geocodeCache.delete(geocodeCache.keys().next().value!);
+  }
+  const lookup = geocodeAcrossProviders(query).then(details => {
+    if (!details) geocodeCache.delete(key);
+    return details;
+  });
+  geocodeCache.set(key, lookup);
+  return lookup;
+}
+
+async function geocodeAcrossProviders(query: string): Promise<OlaPlaceDetails | null> {
   if (isOlaMapsConfigured()) {
     try {
       const details = await olaGeocodeOnly(query);
