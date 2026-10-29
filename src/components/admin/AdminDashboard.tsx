@@ -18,6 +18,7 @@ import { DriverFleetList } from './DriverFleetList';
 import { vehicleClassLabel, type VehicleClass } from '@/lib/dispatch';
 import { DriverPinControl } from './DriverPinControl';
 import { BookingWhatsApp } from './BookingWhatsApp';
+import { ReceiptButton } from './ReceiptButton';
 import { MapPanel } from './MapPanel';
 import type { ActiveTab } from './AdminShell';
 import { OfflineIndicator } from '@/components/ui/OfflineIndicator';
@@ -957,6 +958,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                   <Button size="sm" variant="outline" className="flex-1 rounded-lg text-xs" onClick={() => { openPaymentSheet(detailBooking); setDetailBooking(null); }}>
                     Log Payment
                   </Button>
+                  {detailBooking.fare != null && <ReceiptButton booking={detailBooking} />}
                 </div>
               </div>
             );
