@@ -8,7 +8,7 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | # | Date | Area | Change | Commit |
 | --- | --- | --- | --- | --- |
 | 1 | 2026-10-28 | Maps / address search | Look up addresses after typing pauses; say which map search failed | `2959a5e` |
-| 2 | 2026-10-30 | Driver app | Trip actions wait for the database before moving the screen on | see git log |
+| 2 | 2026-10-30 | Driver app | Trip actions wait for the database before moving the screen on | `ab82773` |
 
 ---
 
