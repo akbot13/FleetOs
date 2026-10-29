@@ -5,6 +5,16 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 - **Branch:** `Ak-changes` on the fork [akbot13/FleetOs](https://github.com/akbot13/FleetOs/tree/Ak-changes), made from `main` at `a522d2b` (27 Oct 2026).
 - **Live site:** https://fleetoss.vercel.app deploys only from `shivamjindal076-lab/FleetOs` `main`. Nothing here reaches it until a pull request is merged.
 
+## Needs Shivam (things the code can't do)
+
+| What | Why | Where |
+| --- | --- | --- |
+| Add `https://fleetoss.vercel.app` and `http://localhost:8080` to the Ola Maps key's allowed domains | Address search on the live site fails with "Domain is not allowed" (403) | Ola Maps dashboard |
+| Check or renew the Mappls access token | Mappls answers 503 / is blocked | Mappls console, then Vercel env |
+| Review, then apply `supabase/migrations/20261030000000_rate_cards.sql` (a test project first is best), then `npm run db:check` | Turns on saving in the new Rate card screen (#6, #7). Fares don't change until a rate card is saved | Supabase |
+| Fix `sdpublic.driver_pins` → `public.driver_pins` in `20261025010000_driver_pin_sign_in.sql` | A fresh database can't set driver PINs (the live one was presumably fixed by hand) | Supabase migrations |
+| Don't run the Playwright tests against the live database | `tests/global-setup.ts` deletes and inserts bookings and resets drivers | `.env` |
+
 | # | Date | Area | Change | Commit |
 | --- | --- | --- | --- | --- |
 | 1 | 2026-10-28 | Maps / address search | Look up addresses after typing pauses; say which map search failed | `2959a5e` |
@@ -18,8 +28,45 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 9 | 2026-10-30 | Admin / reports (addition) | Download bookings for Excel | `312728b` |
 | 10 | 2026-10-30 | Customer (addition) | Share my ride with family | `69853c5` |
 | 11 | 2026-10-30 | Admin / receipts (addition) | Printable trip receipt | `69dfd8e` |
+| 12 | 2026-10-30 | Code quality | All 57 lint errors cleared; driver last-updated and handover-save bugs fixed | `8334485` |
 
 ---
+
+## 12. All 57 lint errors cleared; two bugs fixed on the way
+
+**Date:** 2026-10-30 · **Commit:** `8334485` · **Status:** pushed to the fork
+
+### The issue
+
+`npm run lint` reported 57 errors and 12 warnings (the team's review lists this as FO-17), so a new real problem would disappear among the old ones. 53 of the errors were the loose `any` type, which turns off type checking for that value. Typing them properly surfaced two real bugs:
+
+1. **Driver "last updated" always said "Unknown".** The admin's driver list read `driver.updated_at`, a column the drivers table doesn't have. The location time is in `location_updated_at`.
+2. **Handover Approve and Flag ignored failed saves.** They removed the handover from the list even when the database refused the change, so the admin thought it was approved when it wasn't.
+
+### What changed
+
+- **Real types instead of `any`:**
+  - the slice of Leaflet the app uses (it's loaded from a CDN, so its own types weren't available);
+  - the replies from Ola, Mappls, OpenStreetMap and OSRM;
+  - cash handovers, collection rows, the driver sign-in row, and error handling.
+- `getLastUpdated` now reads `location_updated_at`, so the admin sees "3 min ago" instead of "Unknown".
+- Approve and Flag on cash handovers now check the save, show an error, and keep the handover on screen if it failed.
+- `tailwind.config.ts` uses an `import` instead of `require()`, a test avoids a constant expression, and `OLA maps/` is left out of lint: it holds earlier copies of the map components that nothing imports.
+
+| | Before | After |
+| --- | --- | --- |
+| Lint errors | 57 | **0** |
+| Lint warnings | 12 | 12 (React hook dependency and hot-reload hints, left for case-by-case review) |
+
+### Checks
+
+- Lint 0 errors; type check (app and config) passes; all 61 unit tests and `npm run test:sql` pass; build passes.
+- Locally: the tracking map still draws its markers, route and tiles after the map typing changes.
+- The two bug fixes weren't clicked through, since they need an admin login.
+
+### Note for Shivam
+
+`tests/global-setup.ts` (Playwright) **writes to whatever database the .env points at**: it deletes and inserts bookings and resets every driver to "free". With today's `.env`, that's the live Anil Cabs database. Don't run the Playwright tests until they point at a test database.
 
 ## 11. Printable trip receipt (addition)
 
