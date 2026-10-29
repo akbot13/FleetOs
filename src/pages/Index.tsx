@@ -1,17 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { CustomerHome } from '@/components/customer/CustomerHome';
-import { AdminDashboard } from '@/components/admin/AdminDashboard';
-import { AdminShell } from '@/components/admin/AdminShell';
-import { DriverApp } from '@/components/driver/DriverApp';
-import { DriverLoginPage } from '@/components/auth/DriverLoginPage';
-import { PricingEngine } from '@/components/admin/PricingEngine';
-import { LoginPage } from '@/components/auth/LoginPage';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { hasApprovedDriverSession, normalizeAppView, type AppView } from '@/lib/viewAccess';
 import { readTrackingTokenFromUrl } from '@/lib/trackingStorage';
 import { Car, Settings, DollarSign, LogOut, Loader2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+
+// Most visitors are customers, so the staff screens download only when someone opens them.
+const AdminDashboard = lazy(() => import('@/components/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const AdminShell = lazy(() => import('@/components/admin/AdminShell').then(m => ({ default: m.AdminShell })));
+const DriverApp = lazy(() => import('@/components/driver/DriverApp').then(m => ({ default: m.DriverApp })));
+const DriverLoginPage = lazy(() => import('@/components/auth/DriverLoginPage').then(m => ({ default: m.DriverLoginPage })));
+const PricingEngine = lazy(() => import('@/components/admin/PricingEngine').then(m => ({ default: m.PricingEngine })));
+const LoginPage = lazy(() => import('@/components/auth/LoginPage').then(m => ({ default: m.LoginPage })));
+
+const screenLoading = (
+  <div className="min-h-screen flex items-center justify-center">
+    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  </div>
+);
 
 function AccessDenied({
   title,
@@ -120,7 +128,9 @@ const Index = () => {
   if ((view === 'admin' || view === 'pricing') && !user) {
     return (
       <div className="relative min-h-screen">
-        <LoginPage onDriverSelect={() => handleSetView('driver')} />
+        <Suspense fallback={screenLoading}>
+          <LoginPage onDriverSelect={() => handleSetView('driver')} />
+        </Suspense>
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
           <Button
             variant="outline"
@@ -160,11 +170,13 @@ const Index = () => {
   return (
     <div className="relative min-h-screen">
       {view === 'customer' && <CustomerHome />}
-      {view === 'admin' && <AdminShell activeTab="dashboard"><AdminDashboard /></AdminShell>}
-      {view === 'driver' && (canOpenDriverSurface
-        ? <DriverApp driver={readStoredDriver()} />
-        : <DriverLoginPage onSignedIn={() => setDriverSignInCount(c => c + 1)} />)}
-      {view === 'pricing' && <PricingEngine />}
+      <Suspense fallback={screenLoading}>
+        {view === 'admin' && <AdminShell activeTab="dashboard"><AdminDashboard /></AdminShell>}
+        {view === 'driver' && (canOpenDriverSurface
+          ? <DriverApp driver={readStoredDriver()} />
+          : <DriverLoginPage onSignedIn={() => setDriverSignInCount(c => c + 1)} />)}
+        {view === 'pricing' && <PricingEngine />}
+      </Suspense>
 
       {/* Signed-in drivers have their own Log Out; on admin screens the switcher sits
           at the bottom so it doesn't cover the header nav. */}
