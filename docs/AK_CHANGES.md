@@ -13,8 +13,40 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 4 | 2026-10-30 | Tests | Cash tests run without database settings | `87e13d2` |
 | 5 | 2026-10-30 | Performance | Staff screens download only when opened | `f46bc0f` |
 | 6 | 2026-10-30 | Pricing | Rate cards: any pricing model per trip type (migration not applied) | `7ffe6dd` |
+| 7 | 2026-10-30 | Pricing / admin | Rate card editor on the Pricing screen (preview until migration) | `ac6268c` |
 
 ---
+
+## 7. Rate card editor on the Pricing screen
+
+**Date:** 2026-10-30 · **Commit:** `ac6268c` · **Status:** pushed to the fork; tested locally (preview mode)
+
+### The issue
+
+The Pricing screen had eight number boxes: one base fare per trip type, night %, and two car-size multipliers. There was no way to choose a different pricing model, add peak or festival surcharges, set GST or waiting charges, or see what a change would do to real trips before saving.
+
+### What changed
+
+The Pricing page has two tabs. **Basic rates** is the old screen, unchanged. **Rate card** is new (`src/components/admin/RateCardEditor.tsx`):
+
+- **Per trip type**, a dropdown picks the model (flat, by distance, meter, hourly, rental packages, per day, outstation per km). The fields change to match, with a one-line explanation, and rental packages can be added and removed.
+- **Car size, returns and stays:** multipliers and the driver's night halt.
+- **Surcharges:** time windows with weekday chips (e.g. "Evening peak 20%, 5–9 PM, Mon–Fri"), plus festival dates. The screen explains that only the biggest one applies.
+- **Waiting, tax and rounding.**
+- **Problems are listed in plain words** (e.g. "Tax must be between 0 and 50%"), and Save stays off until they're fixed.
+- **Fare calculator:** any trip type, car size, distance, minutes, hours, days, pickup hour, waiting, return and stay, with the full breakdown.
+- **"Now vs this card" table** on five typical trips, so the admin sees the effect before saving: dearer in amber, cheaper in green.
+- **Undo changes** returns to the saved card.
+
+**Preview only until the migration is applied.** The tab checks whether the database has the `rate_card` column. If not, which is the live database today, it shows a "Preview only" notice and Save stays off. It never writes to the old pricing columns.
+
+### Checks
+
+- Locally in Chrome against the live database (read-only): "Preview only" shows; city switched to "By distance" gives ₹226 for 12 km (₹100 + 9 km × ₹14); typical trips update (5 km ₹180 → ₹150, 15 km ₹180 → ₹268); a 6 hr / 60 km sightseeing trip falls in the 8 hr / 80 km package (₹2,200).
+- At phone width (375 px): no sideways scrolling. The date-surcharge row was cramped and was fixed to wrap onto two lines.
+- Type check, all 48 unit tests, and lint on the new files pass.
+- Screenshots: `resources/screenshots/2026-10-30-rate-card-editor-phone.jpg`, `2026-10-30-rate-card-packages.jpg`.
+- Saving wasn't tested: it needs the migration on a database.
 
 ## 6. Rate cards: any pricing model per trip type
 
