@@ -12,8 +12,63 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 3 | 2026-10-30 | Admin / drivers | Remove-driver button reports when removal fails | `3e15c02` |
 | 4 | 2026-10-30 | Tests | Cash tests run without database settings | `87e13d2` |
 | 5 | 2026-10-30 | Performance | Staff screens download only when opened | `f46bc0f` |
+| 6 | 2026-10-30 | Pricing | Rate cards: any pricing model per trip type (migration not applied) | `7ffe6dd` |
 
 ---
+
+## 6. Rate cards: any pricing model per trip type
+
+**Date:** 2026-10-30 · **Commit:** `7ffe6dd` · **Status:** pushed to the fork. ⚠️ Includes a database migration that is **not applied** to the live database.
+
+### The issue
+
+Pricing could only be one fixed number per trip type: a city ride was a flat ₹180 whether it was 2 km or 30 km, outstation was per day with no distance, and sightseeing was per hour. Fleets price in many other ways (by km, meter-style, rental packages like 4 hr / 40 km, outstation per km with a daily minimum), and none of them could be set up. There were also no peak-hour or festival surcharges, waiting charges, GST or rounding.
+
+### What changed
+
+A fleet now has a **rate card**. Each trip type picks one of seven models:
+
+| Model | Charges | Example |
+| --- | --- | --- |
+| Flat | One price | Airport ₹450 |
+| By distance | Base fare covering the first few km, then ₹/km, with a minimum | ₹100 for 3 km, then ₹14/km, minimum ₹150 |
+| Meter | Base + ₹/km + ₹/minute, with a minimum | ₹60 + ₹12/km + ₹1.5/min |
+| By the hour | ₹/hour with minimum hours | ₹550/hr, minimum 2 hr |
+| Rental packages | Cheapest package that covers the trip; longer trips pay the largest plus extra hours and km | 4 hr/40 km ₹1,200, 8 hr/80 km ₹2,200 |
+| Per day | ₹/day | ₹3,200/day |
+| Outstation per km | ₹/km, at least the daily minimum km, plus a driver allowance per day | ₹12/km, 250 km/day, ₹400/day |
+
+On top of the model:
+- **Car-size multipliers**, as before.
+- **Return-trip multiplier** for city and airport (×2, as before).
+- **Driver night halt** per night (outstation).
+- **Time surcharges** (night, peak hours, chosen weekdays) and **date surcharges** (festivals). Only the biggest one applies, so night and Diwali don't stack.
+- **Waiting charges** after some free minutes, **tax/GST %**, and **rounding** to ₹1, ₹5 or ₹10.
+
+Every fare comes with a line-by-line breakdown.
+
+| File | What it is |
+| --- | --- |
+| `src/lib/pricing.ts` | The calculator and rate-card types. Used by the Pricing screen to preview unsaved rates. |
+| `supabase/migrations/20261030000000_rate_cards.sql` | **Not applied.** Adds `org_pricing.rate_card` and the same calculator in the database (`quote_fare_from_card`). `quote_fare()` keeps its name and inputs, so the apps keep working. |
+| `src/lib/pricingCases.json` | 18 hand-checked fare cases both calculators must agree on. |
+| `scripts/check-rate-cards-sql.mjs` | Runs the migration in an in-memory Postgres (PGlite), with no connection to any real database. `npm run test:sql`. |
+
+**Nothing changes for a fleet until its admin saves a rate card.** A fleet without one is priced from its old settings through a rate card built to charge exactly the old fares.
+
+**Customers can't set their own distance.** A distance sent with a customer booking is ignored for now, because the customer app doesn't yet send coordinates the database can check. Distance-based plans charge their minimum for customer bookings until that's added; admin quotes can include a distance. See "Next steps".
+
+### Checks
+
+- 23 calculator tests, including 576 combinations matching the old `quote_fare()` formula exactly.
+- `npm run test:sql`: the migration loads in real Postgres (PGlite); all 18 shared cases match; the new `quote_fare()` gives the same fare as the previous one on all **1,152** combinations tested; a customer's distance is ignored.
+- All 48 unit tests pass; type check passes; no lint problems in the new files.
+
+### Next steps
+
+1. **Shivam reviews and applies the migration**, ideally on a test Supabase project first. After applying, run `npm run db:check`.
+2. Customer app sends pickup/drop coordinates, and the database measures the distance itself, so distance and meter plans work for customer bookings.
+3. Final fare from the odometer at trip end (the trip already records start and end readings).
 
 ## 5. Staff screens download only when opened
 
