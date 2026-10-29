@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { useCollectionsByDate, useCollectionsByRange } from '@/hooks/useSupabaseData';
+import { useCollectionsByDate, useCollectionsByRange, useDrivers } from '@/hooks/useSupabaseData';
+import { downloadCsv, toCsv } from '@/lib/csv';
 
 type Mode = 'day' | 'week' | 'month';
 
@@ -147,6 +148,43 @@ function SummaryCard({ bookings, label }: { bookings: any[]; label: string }) {
   );
 }
 
+// The period's bookings as a spreadsheet for the fleet's accounts. Times are India time.
+interface ExportRow {
+  id: number;
+  scheduled_at: string | null;
+  customer_name: string | null;
+  pickup: string | null;
+  drop: string | null;
+  status: string | null;
+  driver_id: number | null;
+  fare: number | null;
+  amount_collected: number | null;
+  payment_method: string | null;
+  payment_confirmed_at: string | null;
+}
+
+function downloadBookingsCsv(bookings: ExportRow[], drivers: { id: number; name: string | null }[], start: string, end: string) {
+  const driverName = new Map(drivers.map(d => [d.id, d.name ?? '']));
+  const ist = (iso: string | null, opts: Intl.DateTimeFormatOptions) =>
+    iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', ...opts }) : '';
+  const csv = toCsv(bookings, [
+    { header: 'Booking ID', value: b => b.id },
+    { header: 'Date', value: b => ist(b.scheduled_at, { year: 'numeric', month: '2-digit', day: '2-digit' }) },
+    { header: 'Time', value: b => ist(b.scheduled_at, { hour: '2-digit', minute: '2-digit', hour12: false }) },
+    { header: 'Customer', value: b => b.customer_name },
+    { header: 'Pickup', value: b => b.pickup },
+    { header: 'Drop', value: b => b.drop },
+    { header: 'Trip status', value: b => b.status },
+    { header: 'Driver', value: b => (b.driver_id != null ? driverName.get(b.driver_id) : '') },
+    { header: 'Fare (Rs)', value: b => b.fare },
+    { header: 'Collected (Rs)', value: b => b.amount_collected },
+    { header: 'Paid by', value: b => b.payment_method },
+    { header: 'Payment', value: b => getPaymentStatus(b) },
+    { header: 'Paid at', value: b => ist(b.payment_confirmed_at, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) },
+  ]);
+  downloadCsv(start === end ? `bookings-${start}.csv` : `bookings-${start}-to-${end}.csv`, csv);
+}
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export function CollectionsHistory() {
@@ -154,6 +192,7 @@ export function CollectionsHistory() {
   const [offset, setOffset] = useState(0);
 
   const { start, end, label } = getRange(mode, offset);
+  const { data: drivers = [] } = useDrivers();
 
   // Day mode uses single-day hook; week/month use range hook
   const dayQuery = useCollectionsByDate(start);
@@ -250,9 +289,21 @@ export function CollectionsHistory() {
 
           {/* Booking list */}
           <Card className="p-4 shadow-card rounded-xl">
-            <p className="text-xs font-semibold text-muted-foreground mb-2">
-              {bookings.length} booking{bookings.length !== 1 ? 's' : ''}
-            </p>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="text-xs font-semibold text-muted-foreground">
+                {bookings.length} booking{bookings.length !== 1 ? 's' : ''}
+              </p>
+              {bookings.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => downloadBookingsCsv(bookings, drivers, start, end)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs font-semibold hover:bg-muted transition"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download for Excel
+                </button>
+              )}
+            </div>
             {bookings.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No bookings for this period</p>
             ) : (
