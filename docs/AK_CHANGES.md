@@ -13,7 +13,7 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 
 ## 1. Look up addresses after typing pauses; say which map search failed
 
-**Date:** 2026-10-28 · **Commit:** `2959a5e` · **Status:** pushed to the fork, not tested in a browser yet
+**Date:** 2026-10-28 · **Commit:** `2959a5e` · **Status:** pushed to the fork, tested locally on 2026-10-30
 
 ### The issue
 
@@ -46,9 +46,12 @@ The code made this worse in two ways:
 - Unit tests: 19 of 19 pass. `cash.test.ts` still fails to load without a `.env`; that problem predates this change.
 - Type check and production build pass.
 - Lint: no new problems in the changed files (20 before, 20 after; all existed already).
-- Not yet tried in a browser.
+- **Browser test, 2026-10-30,** running locally (`npm run dev`, http://localhost:8080) against the live database, read-only (nothing saved):
+  - Typed "Jaipur Railway Station" into the customer pickup box in three bursts. The map preview sent **one** address lookup, for the finished address. Before the change it sent one per keystroke.
+  - From this computer, OpenStreetMap answered (200) and suggestions appeared. Ola still answered 403 and Mappls 503, even on `localhost`.
+  - With OpenStreetMap blocked in that tab only (a test override, removed afterwards), the box showed: *"Address search is unavailable: Ola Maps refused this site (403), Mappls could not be reached, OpenStreetMap could not be reached. You can still type the full address."*
 
 ### Still needed outside the code
 
-- **Ola Maps dashboard:** add `https://fleetoss.vercel.app` (and any preview domains) to the API key's allowed domains. This is what actually brings search back on the live site.
+- **Ola Maps dashboard:** add `https://fleetoss.vercel.app` (and any preview domains) to the API key's allowed domains. This is what actually brings search back on the live site. The key also refuses `localhost`, so add `http://localhost:8080` for local testing.
 - **Mappls:** check whether the access token in Vercel has expired.
