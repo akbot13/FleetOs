@@ -12,7 +12,7 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | Add `https://fleetoss.vercel.app` and `http://localhost:8080` to the Ola Maps key's allowed domains | Address search on the live site fails with "Domain is not allowed" (403) | Ola Maps dashboard |
 | Check or renew the Mappls access token | Mappls answers 503 / is blocked | Mappls console, then Vercel env |
 | Review, then apply `supabase/migrations/20261030000000_rate_cards.sql` (a test project first is best), then `npm run db:check` | Turns on saving in the new Rate card screen (#6, #7). Fares don't change until a rate card is saved | Supabase |
-| Fix `sdpublic.driver_pins` → `public.driver_pins` in `20261025010000_driver_pin_sign_in.sql` | A fresh database can't set driver PINs (the live one was presumably fixed by hand) | Supabase migrations |
+| Check the live `set_driver_pin()` uses `public.driver_pins`; optionally apply `20261030010000_fix_set_driver_pin_schema.sql` | The original migration had a typo (#14); the new migration fixes it for fresh databases | Supabase |
 | Don't run the Playwright tests against the live database | `tests/global-setup.ts` deletes and inserts bookings and resets drivers | `.env` |
 
 | # | Date | Area | Change | Commit |
@@ -29,8 +29,54 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 10 | 2026-10-30 | Customer (addition) | Share my ride with family | `69853c5` |
 | 11 | 2026-10-30 | Admin / receipts (addition) | Printable trip receipt | `69dfd8e` |
 | 12 | 2026-10-30 | Code quality | All 57 lint errors cleared; driver last-updated and handover-save bugs fixed | `8334485` |
+| 13 | 2026-10-30 | CI | Lint, types, tests, SQL tests and build on every push | `808e4dc` |
+| 14 | 2026-10-30 | Database / drivers | Driver PIN typo fixed for new databases (migration not applied) | `3c8768e` |
 
 ---
+
+## 14. Driver PIN typo fixed for new databases
+
+**Date:** 2026-10-30 · **Commit:** `3c8768e` · **Status:** pushed to the fork. Migration **not applied** (the live database doesn't need it).
+
+### The issue
+
+`set_driver_pin()` in `20261025010000_driver_pin_sign_in.sql` saves the PIN into `sdpublic.driver_pins`, a schema that doesn't exist (the code review's problem #1). Postgres only checks table names when the function runs, so the migration applied without error, but on any database built from these migrations, **every attempt to set a PIN fails and no driver can ever sign in**. The live database must have been fixed by hand, since PIN sign-in works there. A second fleet set up from the repo would have been broken.
+
+### What changed
+
+- A new migration, `20261030010000_fix_set_driver_pin_schema.sql`, replaces the function with `public.driver_pins`. It differs from the original in that one word only.
+- The original migration file is left untouched, so the migration history stays the same.
+- On the live database, applying it is harmless: it re-creates the same function the live one presumably already is.
+
+### Checks
+
+- `npm run test:sql` now also loads both versions into the in-memory Postgres: the original fails to save a PIN, and the fixed one saves it and signs the driver out. PGlite has no pgcrypto, so the hashing is a stand-in: this checks where the PIN goes, not bcrypt.
+
+## 13. CI: every push is checked on GitHub
+
+**Date:** 2026-10-30 · **Commit:** `808e4dc` · **Status:** pushed; **first run passed** ([run 40956049942](https://github.com/akbot13/FleetOs/actions/runs/40956049942))
+
+### The issue
+
+Nothing checked the code automatically (FO-08 in the team's review). Lint errors had piled up to 57, and a broken change could reach `main` and the live site unnoticed.
+
+### What changed
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+
+1. `npm ci` (a clean install from the lockfile)
+2. Lint (now 0 errors, so any new error fails the run)
+3. Type check (app and config)
+4. Unit tests (no `.env` needed since change #4)
+5. Rate-card SQL tests in an in-memory Postgres (`npm run test:sql`)
+6. Production build
+
+It needs **no secrets** and **never connects to a database**. Once merged into Shivam's repo, it runs there too, and shows a ✓ or ✗ on every pull request.
+
+### Checks
+
+- The first run on the fork passed every step.
+- The Playwright end-to-end tests aren't in CI: they're out of date (old OTP sign-in) and write to the live database (see #12).
 
 ## 12. All 57 lint errors cleared; two bugs fixed on the way
 
