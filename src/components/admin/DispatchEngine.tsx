@@ -119,7 +119,7 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
         setAssigning(null);
         onClose();
       }, 1500);
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message ?? 'Assignment failed');
       setAssigning(null);
     }

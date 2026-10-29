@@ -7,6 +7,7 @@ import {
   olaGeocode,
   useOlaMaps,
 } from '@/lib/olaMaps';
+import type { LeafletMarker } from '@/lib/olaMaps';
 
 interface TripPreviewMapProps {
   pickup?: string;
@@ -101,7 +102,7 @@ export function TripPreviewMap({
   const [isResolving, setIsResolving] = useState(false);
   const [routeDistanceKm, setRouteDistanceKm] = useState<number | null>(null);
   const [routeProvider, setRouteProvider] = useState<string>('Preparing preview');
-  const markersRef = useRef<any[]>([]);
+  const markersRef = useRef<LeafletMarker[]>([]);
   const routeLayerIdsRef = useRef<string[]>([]);
   const driverMarkerRef = useRef<{ setLatLng: (latLng: [number, number]) => void; remove: () => void } | null>(null);
   const driverCoordsRef = useRef<[number, number] | null>(null);

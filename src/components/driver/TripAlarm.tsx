@@ -14,7 +14,7 @@ export function TripAlarm({ trip, onConfirm, onDismiss }: {
 
   useEffect(() => {
     if ('vibrate' in navigator) navigator.vibrate([500, 200, 500, 200, 500, 200, 500]);
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     let stopped = false;
     const playBeep = () => {
       if (stopped) return;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { MapPin } from 'lucide-react';
 import { olaDirections, olaGeocode, useOlaMaps } from '@/lib/olaMaps';
+import type { LeafletMarker } from '@/lib/olaMaps';
 import type { TripPhase, MockTrip } from './types';
 import { JAIPUR_CENTER, PICKUP_FALLBACK, DROP_FALLBACK } from './helpers';
 
@@ -16,7 +17,7 @@ export function DriverTripMap({
   driverPosition: { lat: number; lng: number } | null;
 }) {
   const { addMarker, containerRef, drawRoute, error, fitBounds, isLoaded, providerLabel, removeRoute } = useOlaMaps(JAIPUR_CENTER, 12);
-  const markersRef = useRef<any[]>([]);
+  const markersRef = useRef<LeafletMarker[]>([]);
   const routeLayerRef = useRef<string[]>([]);
   const [points, setPoints] = useState<{ pickup: { lat: number; lng: number }; drop: { lat: number; lng: number } }>({
     pickup: PICKUP_FALLBACK,

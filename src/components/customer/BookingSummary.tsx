@@ -111,7 +111,7 @@ export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
       // Keep the token so the live map can be reopened later from this device.
       saveTrackingToken(created.booking_token);
       setTrackingToken(created.booking_token);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Booking error:', err);
       toast({ title: 'Booking failed', description: err.message, variant: 'destructive' });
     } finally {

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { useDrivers, useBookings, useTodayCashHandovers, useDriverCollections, tripTypeIcons, tripTypeLabels, getDriverInitials, type SupabaseBooking, type SupabaseDriver } from '@/hooks/useSupabaseData';
+import { useDrivers, useBookings, useTodayCashHandovers, useDriverCollections, tripTypeIcons, tripTypeLabels, getDriverInitials, type CashHandover, type SupabaseBooking, type SupabaseDriver } from '@/hooks/useSupabaseData';
 import { useOrg } from '@/hooks/useOrg';
 import { DispatchEngine } from './DispatchEngine';
 import { PaymentSummary } from './PaymentSummary';
@@ -73,7 +73,7 @@ function PendingHandovers() {
   const queryClient = useQueryClient();
   const { data: drivers = [] } = useDrivers();
   const { org } = useOrg();
-  const [handovers, setHandovers] = useState<any[]>([]);
+  const [handovers, setHandovers] = useState<CashHandover[]>([]);
 
   useEffect(() => {
     if (!org) return;
@@ -85,7 +85,7 @@ function PendingHandovers() {
         .eq('org_id', org.id)
         .eq('admin_approved', false)
         .order('handed_over_at', { ascending: false });
-      setHandovers(res.data || []);
+      setHandovers((res.data ?? []) as CashHandover[]);
     };
     fetch();
   }, [org]);
@@ -101,7 +101,7 @@ function PendingHandovers() {
         Pending Handovers ({handovers.length})
       </h3>
       <div className="space-y-2">
-        {handovers.map((h: any) => (
+        {handovers.map((h) => (
           <div key={h.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
             <div>
               <p className="text-sm font-semibold">{getDriverName(h.driver_id)}</p>
@@ -114,9 +114,13 @@ function PendingHandovers() {
                 size="sm"
                 className="bg-success text-success-foreground hover:bg-success/90 rounded-lg text-xs"
                 onClick={async () => {
-                  await (supabase.from('cash_handovers_v2'))
+                  const { error } = await supabase.from('cash_handovers_v2')
                     .update({ admin_approved: true })
                     .eq('id', h.id);
+                  if (error) {
+                    toast.error(`Couldn't approve the handover: ${error.message}`);
+                    return;
+                  }
                   setHandovers(prev => prev.filter(x => x.id !== h.id));
                   queryClient.invalidateQueries({ queryKey: ['pending-handovers'] });
                   toast('Handover approved ✓');
@@ -129,9 +133,13 @@ function PendingHandovers() {
                 variant="outline"
                 className="border-destructive text-destructive hover:bg-destructive/10 rounded-lg text-xs"
                 onClick={async () => {
-                  await (supabase.from('cash_handovers_v2'))
+                  const { error } = await supabase.from('cash_handovers_v2')
                     .update({ admin_notes: 'Flagged for review' })
                     .eq('id', h.id);
+                  if (error) {
+                    toast.error(`Couldn't flag the handover: ${error.message}`);
+                    return;
+                  }
                   setHandovers(prev => prev.filter(x => x.id !== h.id));
                   toast('Handover flagged');
                 }}
@@ -149,8 +157,8 @@ function DriverCollectionPanel({ driverId, period }: { driverId: number; period:
   const { data: bookings = [], isLoading } = useDriverCollections(driverId, period);
 
   const totalTrips = bookings.length;
-  const collected = bookings.reduce((s: number, b: any) => s + (b.amount_collected ?? 0), 0);
-  const pending = bookings.reduce((s: number, b: any) => s + ((b.fare ?? 0) - (b.amount_collected ?? 0)), 0);
+  const collected = bookings.reduce((s, b) => s + (b.amount_collected ?? 0), 0);
+  const pending = bookings.reduce((s, b) => s + ((b.fare ?? 0) - (b.amount_collected ?? 0)), 0);
 
   if (isLoading) return <div className="p-3 text-xs text-muted-foreground">Loading...</div>;
 
@@ -174,7 +182,7 @@ function DriverCollectionPanel({ driverId, period }: { driverId: number; period:
         <p className="text-xs text-muted-foreground text-center py-2">No trips in this period</p>
       ) : (
         <div className="space-y-1.5 max-h-48 overflow-y-auto">
-          {bookings.map((b: any) => (
+          {bookings.map((b) => (
             <div key={b.id} className="flex items-center justify-between text-xs py-1.5 border-b border-border last:border-0">
               <div className="flex-1 min-w-0 mr-2">
                 <p className="font-medium truncate">{b.pickup} → {b.drop}</p>
@@ -214,15 +222,17 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
   const [collectionDriverId, setCollectionDriverId] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
-  const openDriverInMaps = (driver: any) => {
+  const openDriverInMaps = (driver: SupabaseDriver) => {
     if (!driver.location_lat || !driver.location_lng) return;
-    const url = `https://www.google.com/maps?q=${driver.location_lat},${driver.location_lng}&label=${encodeURIComponent(driver.name)}`;
+    const url = `https://www.google.com/maps?q=${driver.location_lat},${driver.location_lng}&label=${encodeURIComponent(driver.name ?? '')}`;
     window.open(url, '_blank');
   };
 
-  const getLastUpdated = (driver: any) => {
-    if (!driver.updated_at) return 'Unknown';
-    const mins = Math.round((Date.now() - new Date(driver.updated_at).getTime()) / 60000);
+  // When the driver's location last came in. drivers has no updated_at column, so this read
+  // a missing field and always said "Unknown".
+  const getLastUpdated = (driver: SupabaseDriver) => {
+    if (!driver.location_updated_at) return 'Unknown';
+    const mins = Math.round((Date.now() - new Date(driver.location_updated_at).getTime()) / 60000);
     if (mins < 1) return 'Just now';
     if (mins < 60) return `${mins} min ago`;
     return `${Math.round(mins / 60)} hr ago`;

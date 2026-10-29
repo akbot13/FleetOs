@@ -6,9 +6,24 @@ import { downloadCsv, toCsv } from '@/lib/csv';
 
 type Mode = 'day' | 'week' | 'month';
 
+// A booking as the collections queries return it.
+interface CollectionBooking {
+  id: number;
+  scheduled_at: string | null;
+  customer_name: string | null;
+  pickup: string | null;
+  drop: string | null;
+  status: string | null;
+  driver_id: number | null;
+  fare: number | null;
+  amount_collected: number | null;
+  payment_method: string | null;
+  payment_confirmed_at: string | null;
+}
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
-function getPaymentStatus(b: any): 'paid' | 'partial' | 'unpaid' {
+function getPaymentStatus(b: Pick<CollectionBooking, 'payment_confirmed_at' | 'amount_collected' | 'fare'>): 'paid' | 'partial' | 'unpaid' {
   if (!b.payment_confirmed_at) return 'unpaid';
   const collected = b.amount_collected ?? 0;
   const fare = b.fare ?? 0;
@@ -83,7 +98,7 @@ function BarChart({ bars }: { bars: { label: string; amount: number }[] }) {
 
 // ─── BOOKING ROW ──────────────────────────────────────────────────────────────
 
-function BookingRow({ b }: { b: any }) {
+function BookingRow({ b }: { b: CollectionBooking }) {
   const status = getPaymentStatus(b);
   return (
     <div className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
@@ -116,7 +131,7 @@ function BookingRow({ b }: { b: any }) {
 
 // ─── SUMMARY CARD ─────────────────────────────────────────────────────────────
 
-function SummaryCard({ bookings, label }: { bookings: any[]; label: string }) {
+function SummaryCard({ bookings, label }: { bookings: CollectionBooking[]; label: string }) {
   const totalFare = bookings.reduce((s, b) => s + (b.fare ?? 0), 0);
   const totalCollected = bookings
     .filter(b => b.payment_confirmed_at)
@@ -149,21 +164,8 @@ function SummaryCard({ bookings, label }: { bookings: any[]; label: string }) {
 }
 
 // The period's bookings as a spreadsheet for the fleet's accounts. Times are India time.
-interface ExportRow {
-  id: number;
-  scheduled_at: string | null;
-  customer_name: string | null;
-  pickup: string | null;
-  drop: string | null;
-  status: string | null;
-  driver_id: number | null;
-  fare: number | null;
-  amount_collected: number | null;
-  payment_method: string | null;
-  payment_confirmed_at: string | null;
-}
 
-function downloadBookingsCsv(bookings: ExportRow[], drivers: { id: number; name: string | null }[], start: string, end: string) {
+function downloadBookingsCsv(bookings: CollectionBooking[], drivers: { id: number; name: string | null }[], start: string, end: string) {
   const driverName = new Map(drivers.map(d => [d.id, d.name ?? '']));
   const ist = (iso: string | null, opts: Intl.DateTimeFormatOptions) =>
     iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', ...opts }) : '';
@@ -197,7 +199,7 @@ export function CollectionsHistory() {
   // Day mode uses single-day hook; week/month use range hook
   const dayQuery = useCollectionsByDate(start);
   const rangeQuery = useCollectionsByRange(start, end);
-  const bookings: any[] = mode === 'day' ? (dayQuery.data ?? []) : (rangeQuery.data ?? []);
+  const bookings: CollectionBooking[] = mode === 'day' ? (dayQuery.data ?? []) : (rangeQuery.data ?? []);
   const isLoading = mode === 'day' ? dayQuery.isLoading : rangeQuery.isLoading;
 
   // Build bar chart data
@@ -208,7 +210,7 @@ export function CollectionsHistory() {
         const ds = toDateStr(d);
         const amount = bookings
           .filter(b => b.scheduled_at?.startsWith(ds) && b.payment_confirmed_at)
-          .reduce((s: number, b: any) => s + (b.amount_collected ?? 0), 0);
+          .reduce((s, b) => s + (b.amount_collected ?? 0), 0);
         return { label: d.toLocaleDateString('en-IN', { weekday: 'short' }), amount };
       });
     }
@@ -223,7 +225,7 @@ export function CollectionsHistory() {
         const wEnd = toDateStr(addDays(cursor, 6));
         const amount = bookings
           .filter(b => b.scheduled_at >= wStart + 'T00:00:00' && b.scheduled_at <= wEnd + 'T23:59:59' && b.payment_confirmed_at)
-          .reduce((s: number, b: any) => s + (b.amount_collected ?? 0), 0);
+          .reduce((s, b) => s + (b.amount_collected ?? 0), 0);
         weeks.push({ label: `W${weekNum}`, amount });
         cursor = addDays(cursor, 7);
         weekNum++;

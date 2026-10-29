@@ -7,6 +7,10 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { supabase } from '@/integrations/supabase/client';
 import { DriverApp } from '@/components/driver/DriverApp';
 import { useOrg } from '@/hooks/useOrg';
+import type { SupabaseDriver } from '@/hooks/useSupabaseData';
+
+// The driver row the app is opened with: the sign-in reply, or the row re-read on reopening.
+type FoundDriver = Pick<SupabaseDriver, 'id' | 'name' | 'status'> & Partial<SupabaseDriver>;
 
 type Screen = 'phone' | 'pin' | 'register' | 'holding' | 'app';
 
@@ -17,7 +21,7 @@ export function DriverLoginPage({ onSignedIn }: { onSignedIn?: () => void } = {}
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
   const [driverName, setDriverName] = useState('');
-  const [foundDriver, setFoundDriver] = useState<any>(null);
+  const [foundDriver, setFoundDriver] = useState<FoundDriver | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { org } = useOrg();
@@ -35,7 +39,7 @@ export function DriverLoginPage({ onSignedIn }: { onSignedIn?: () => void } = {}
       .select('id, org_id, name, phone, vehicle_model, plate_number, status, is_temporary, odometer_required')
       .eq('id', parsed.id)
       .maybeSingle()
-      .then(({ data }: { data: any }) => {
+      .then(({ data }) => {
         if (!data) {
           localStorage.removeItem('fleetos_driver');
           localStorage.removeItem('fleetos_driver_screen');
@@ -89,7 +93,8 @@ export function DriverLoginPage({ onSignedIn }: { onSignedIn?: () => void } = {}
       setPin('');
       return;
     }
-    const driver = result.driver as { id: number; status: string | null } & Record<string, unknown>;
+    // driver_sign_in() returns the driver's row (without its session link).
+    const driver = result.driver as unknown as FoundDriver;
     const next: Screen = isActive(driver.status) ? 'app' : 'holding';
     localStorage.setItem('fleetos_driver', JSON.stringify(driver));
     localStorage.setItem('fleetos_driver_screen', next);

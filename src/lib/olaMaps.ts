@@ -1,10 +1,60 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 
+// The parts of Leaflet that FleetOs uses. Leaflet is loaded from the CDN at runtime, so its own
+// types aren't available.
+type LatLngPair = [number, number];
+interface LeafletLatLng { lat: number; lng: number }
+export interface LeafletLayer {
+  addTo(map: LeafletMap): this;
+  remove(): void;
+}
+export interface LeafletMarker extends LeafletLayer {
+  bindPopup(html: string, options?: object): this;
+  setLatLng(latLng: LatLngPair): this;
+}
+export interface LeafletMap {
+  setView(center: LatLngPair, zoom: number, options?: object): this;
+  whenReady(callback: () => void): this;
+  invalidateSize?(): this;
+  remove(): void;
+  getZoom?(): number;
+  flyTo(center: LatLngPair | LeafletLatLng, zoom?: number): this;
+  fitBounds(bounds: unknown, options?: object): this;
+}
+interface LeafletControl { addTo(map: LeafletMap): this; addAttribution(text: string): this }
+interface LeafletStatic {
+  map(element: HTMLElement, options?: object): LeafletMap;
+  tileLayer(url: string, options?: object): LeafletLayer;
+  control: { zoom(options?: object): LeafletControl; attribution(options?: object): LeafletControl };
+  marker(latLng: LatLngPair, options?: object): LeafletMarker;
+  divIcon(options: object): unknown;
+  polyline(latLngs: number[][], options?: object): LeafletLayer;
+  latLng(lat: number, lng: number): LeafletLatLng;
+  latLngBounds(latLngs: LeafletLatLng[]): unknown;
+}
+
 declare global {
   interface Window {
-    L?: any;
+    L?: LeafletStatic;
   }
 }
+
+// What the map services send back. Field names differ between services and API versions, so
+// every field is optional and read defensively.
+interface MapplsPlace {
+  placeName?: string; placeAddress?: string; address?: string; formattedAddress?: string; formatted_address?: string;
+  keyword?: string; eLoc?: string; eloc?: string; placeId?: string;
+  latitude?: unknown; lat?: unknown; entryLatitude?: unknown; entry_lat?: unknown;
+  longitude?: unknown; lng?: unknown; entryLongitude?: unknown; entry_lon?: unknown;
+}
+interface OlaPlaceResult {
+  formatted_address?: string;
+  geometry?: { location?: { lat?: unknown; lng?: unknown } };
+}
+interface RoutesPayload {
+  routes?: { geometry?: string; overview_polyline?: { points?: string } | string }[];
+}
+interface NominatimResult { place_id: number; display_name?: string; name?: string; lat?: string; lon?: string }
 
 const LEAFLET_JS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
 const LEAFLET_CSS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
@@ -261,7 +311,7 @@ async function olaAutocompleteOnly(input: string): Promise<OlaPlacePrediction[]>
 }
 
 async function mapplsAutocompleteOnly(input: string): Promise<OlaPlacePrediction[]> {
-  const payload = await fetchJson<any>(
+  const payload = await fetchJson<{ suggestedLocations?: MapplsPlace[]; results?: MapplsPlace[] } | null>(
     mapplsUrl('search', '/search/places/autosuggest/json', {
       query: input,
       region: 'IND',
@@ -269,14 +319,14 @@ async function mapplsAutocompleteOnly(input: string): Promise<OlaPlacePrediction
     'mappls'
   );
 
-  const suggestions = Array.isArray(payload?.suggestedLocations)
-    ? payload.suggestedLocations
+  const suggestions: MapplsPlace[] = Array.isArray(payload?.suggestedLocations)
+    ? payload!.suggestedLocations!
     : Array.isArray(payload?.results)
-      ? payload.results
+      ? payload!.results!
       : [];
 
   return suggestions
-    .map((suggestion: any) => {
+    .map(suggestion => {
       const description = normalizeAddress(
         suggestion.placeName,
         suggestion.placeAddress,
@@ -314,7 +364,7 @@ async function nominatimAutocomplete(input: string): Promise<OlaPlacePrediction[
   url.searchParams.set('limit', '5');
   url.searchParams.set('q', input);
 
-  const payload = await fetchJson<any[]>(url.toString(), 'nominatim');
+  const payload = await fetchJson<NominatimResult[]>(url.toString(), 'nominatim');
 
   return payload.map(result =>
     buildPrediction('nominatim', result.display_name, `nominatim:${result.place_id}`, {
@@ -327,7 +377,7 @@ async function nominatimAutocomplete(input: string): Promise<OlaPlacePrediction[
 }
 
 async function olaPlaceDetailsOnly(placeId: string): Promise<OlaPlaceDetails | null> {
-  const payload = await fetchJson<any>(
+  const payload = await fetchJson<{ result?: OlaPlaceResult } | null>(
     olaUrl('/places/v1/details', { place_id: placeId }),
     'ola'
   );
@@ -341,7 +391,7 @@ async function olaPlaceDetailsOnly(placeId: string): Promise<OlaPlaceDetails | n
 }
 
 async function olaGeocodeOnly(address: string): Promise<OlaPlaceDetails | null> {
-  const payload = await fetchJson<any>(
+  const payload = await fetchJson<{ geocodingResults?: OlaPlaceResult[] } | null>(
     olaUrl('/places/v1/geocode', { address }),
     'ola'
   );
@@ -356,16 +406,16 @@ async function olaGeocodeOnly(address: string): Promise<OlaPlaceDetails | null> 
 }
 
 async function mapplsGeocodeOnly(address: string): Promise<OlaPlaceDetails | null> {
-  const payload = await fetchJson<any>(
+  const payload = await fetchJson<(MapplsPlace & { copResults?: MapplsPlace[]; results?: MapplsPlace[] }) | MapplsPlace[] | null>(
     mapplsUrl('search', '/search/address/geocode', { address }),
     'mappls'
   );
-  const firstResult = Array.isArray(payload?.copResults)
-    ? payload.copResults[0]
-    : Array.isArray(payload?.results)
-      ? payload.results[0]
-      : Array.isArray(payload)
-        ? payload[0]
+  const firstResult: MapplsPlace | null | undefined = Array.isArray(payload)
+    ? payload[0]
+    : Array.isArray(payload?.copResults)
+      ? payload!.copResults![0]
+      : Array.isArray(payload?.results)
+        ? payload!.results![0]
         : payload;
 
   return normalizeDetails(
@@ -408,7 +458,7 @@ async function olaDirectionsOnly(
   origin: { lat: number; lng: number },
   destination: { lat: number; lng: number }
 ): Promise<RouteResult | null> {
-  const payload = await fetchJson<any>(
+  const payload = await fetchJson<RoutesPayload | null>(
     olaUrl('/routing/v1/directions', {
       origin: `${origin.lat},${origin.lng}`,
       destination: `${destination.lat},${destination.lng}`,
@@ -416,7 +466,8 @@ async function olaDirectionsOnly(
     'ola'
   );
 
-  const polyline = payload?.routes?.[0]?.overview_polyline?.points;
+  const overview = payload?.routes?.[0]?.overview_polyline;
+  const polyline = typeof overview === 'string' ? overview : overview?.points;
   return polyline ? { polyline, provider: 'ola' } : null;
 }
 
@@ -425,16 +476,14 @@ async function mapplsDirectionsOnly(
   destination: { lat: number; lng: number }
 ): Promise<RouteResult | null> {
   const path = `/route/direction/route_adv/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}`;
-  const payload = await fetchJson<any>(
+  const payload = await fetchJson<RoutesPayload | null>(
     mapplsUrl('route', path, { geometries: 'polyline' }),
     'mappls'
   );
 
   const firstRoute = payload?.routes?.[0];
-  const polyline =
-    firstRoute?.geometry ??
-    firstRoute?.overview_polyline?.points ??
-    firstRoute?.overview_polyline;
+  const overview = firstRoute?.overview_polyline;
+  const polyline = firstRoute?.geometry ?? (typeof overview === 'string' ? overview : overview?.points);
 
   return polyline ? { polyline, provider: 'mappls' } : null;
 }
@@ -449,7 +498,7 @@ async function osrmDirections(
   url.searchParams.set('overview', 'full');
   url.searchParams.set('geometries', 'polyline');
 
-  const payload = await fetchJson<any>(url.toString(), 'osrm');
+  const payload = await fetchJson<RoutesPayload | null>(url.toString(), 'osrm');
   const polyline = payload?.routes?.[0]?.geometry;
 
   return polyline ? { polyline, provider: 'osrm' } : null;
@@ -651,14 +700,14 @@ export interface OlaMarkerOptions {
 }
 
 interface UseOlaMapsResult {
-  addMarker: (options: OlaMarkerOptions) => any | null;
+  addMarker: (options: OlaMarkerOptions) => LeafletMarker | null;
   containerRef: RefObject<HTMLDivElement>;
   drawRoute: (polyline: string, options?: string | RouteDrawOptions) => string | null;
   error: string | null;
   fitBounds: (coords: [number, number][], padding?: number) => void;
   flyTo: (lat: number, lng: number, zoom?: number) => void;
   isLoaded: boolean;
-  mapInstance: any | null;
+  mapInstance: LeafletMap | null;
   providerLabel: string;
   removeRoute: (layerId: string) => void;
 }
@@ -668,14 +717,14 @@ export function useOlaMaps(
   defaultZoom = 11
 ): UseOlaMapsResult {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [mapInstance, setMapInstance] = useState<any | null>(null);
+  const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const routeCountRef = useRef(0);
-  const routeLayersRef = useRef(new Map<string, any>());
+  const routeLayersRef = useRef(new Map<string, LeafletLayer>());
 
   useEffect(() => {
-    let map: any;
+    let map: LeafletMap | undefined;
     let isCancelled = false;
 
     loadLeaflet()
@@ -737,7 +786,7 @@ export function useOlaMaps(
   }, [defaultCenter.lat, defaultCenter.lng, defaultZoom, isLoaded, mapInstance]);
 
   const addMarker = useCallback(
-    (options: OlaMarkerOptions): any | null => {
+    (options: OlaMarkerOptions): LeafletMarker | null => {
       if (!mapInstance || !window.L) return null;
 
       const L = window.L;

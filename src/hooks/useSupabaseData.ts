@@ -20,6 +20,8 @@ export interface SupabaseDriver {
   odometer_required: boolean | null;
   location_lat: number | null;
   location_lng: number | null;
+  // When the driver app last moved the location pin (set by the database).
+  location_updated_at?: string | null;
   vehicle_class: string | null;
   created_at: string;
 }

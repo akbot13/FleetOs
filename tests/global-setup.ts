@@ -40,7 +40,7 @@ const ROUTES = [
 export default async function globalSetup() {
   const db = createClient(SUPABASE_URL, SUPABASE_ANON, {
     auth: { persistSession: false },
-  }) as any;
+  });
 
   // ─── Auth ─────────────────────────────────────────────────────────────────
   const { error: signInError } = await db.auth.signInWithPassword({
@@ -95,7 +95,7 @@ export default async function globalSetup() {
   } else if (drivers && drivers.length > 0) {
     await db.from('drivers')
       .update({ status: 'free' })
-      .in('id', drivers.map((d: any) => d.id));
+      .in('id', drivers.map((d: { id: number }) => d.id));
     console.log(`[setup] Reset ${drivers.length} driver(s) to free.`);
   } else {
     console.warn('[setup] No drivers found — driver-assignment tests will be skipped.');

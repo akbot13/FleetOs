@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Activity, Car, MapPin, Navigation } from 'lucide-react';
 import { getDriverInitials, useDrivers } from '@/hooks/useSupabaseData';
 import { getMapStackLabel, useOlaMaps } from '@/lib/olaMaps';
+import type { LeafletMarker } from '@/lib/olaMaps';
 
 const JAIPUR_CENTER = { lat: 26.9124, lng: 75.7873 };
 
@@ -32,7 +33,7 @@ function createDriverMarker(name: string, status: string | null): HTMLElement {
 
 export function MapPanel() {
   const { data: drivers = [] } = useDrivers();
-  const markersRef = useRef<any[]>([]);
+  const markersRef = useRef<LeafletMarker[]>([]);
 
   const driversOnMap = drivers.filter(driver => driver.status !== 'offline' && driver.location_lat && driver.location_lng);
   const freeCount = drivers.filter(driver => driver.status === 'free').length;
