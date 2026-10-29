@@ -17,6 +17,7 @@ import { BentoStats } from './BentoStats';
 import { DriverFleetList } from './DriverFleetList';
 import { vehicleClassLabel, type VehicleClass } from '@/lib/dispatch';
 import { DriverPinControl } from './DriverPinControl';
+import { BookingWhatsApp } from './BookingWhatsApp';
 import { MapPanel } from './MapPanel';
 import type { ActiveTab } from './AdminShell';
 import { OfflineIndicator } from '@/components/ui/OfflineIndicator';
@@ -513,9 +514,13 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                           <Button size="sm" aria-label="Assign Driver" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-lg text-xs" onClick={(e) => { e.stopPropagation(); setDispatchBooking(booking); }}>
                             <Car className="h-3 w-3 mr-1" />Assign
                           </Button>
-                          <Button size="sm" variant="outline" className="rounded-lg text-xs" onClick={(e) => e.stopPropagation()}>
-                            <Phone className="h-3 w-3 mr-1" />Call
-                          </Button>
+                          {booking.customer_phone && (
+                            <Button size="sm" variant="outline" className="rounded-lg text-xs" asChild>
+                              <a href={`tel:${booking.customer_phone.replace(/[^\d+]/g, '')}`} onClick={(e) => e.stopPropagation()}>
+                                <Phone className="h-3 w-3 mr-1" />Call
+                              </a>
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </Card>
@@ -914,6 +919,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                     </div>
                   </Card>
                 )}
+                <BookingWhatsApp booking={detailBooking} driver={assignedDriver ?? null} />
                 <div className="pt-3 flex flex-wrap gap-2">
                   {!detailBooking.driver_id && (
                     <Button size="sm" className="flex-1 bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-lg text-xs" onClick={() => { setDispatchBooking(detailBooking); setDetailBooking(null); }}>

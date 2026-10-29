@@ -56,6 +56,8 @@ export interface SupabaseBooking {
   dispatched_at: string | null;
   trip_started_at: string | null;
   trip_completed_at: string | null;
+  // Private link token the customer tracks the booking with (?track=...).
+  tracking_token?: string | null;
   created_at: string;
 }
 

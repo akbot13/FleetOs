@@ -129,7 +129,7 @@ export function TrackBooking({ token, fallbackPickup, fallbackDrop, onDone }: Tr
             <p className="text-sm font-semibold text-muted-foreground">
               {cancelled
                 ? 'This booking was cancelled.'
-                : 'Finding your driver. Driver and trip details will be shared with you on SMS and WhatsApp once the assignment is confirmed.'}
+                : 'Finding your driver. Their name, car and phone number will appear here as soon as one is assigned; keep this page open or come back to this link.'}
             </p>
           </div>
         ) : (
@@ -149,7 +149,7 @@ export function TrackBooking({ token, fallbackPickup, fallbackDrop, onDone }: Tr
               <p className="text-sm font-medium text-foreground">{driver.phone}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Driver and trip details have been queued for SMS and WhatsApp delivery.
+              Save this page's link to check on your driver at any time.
             </p>
           </div>
         )}
