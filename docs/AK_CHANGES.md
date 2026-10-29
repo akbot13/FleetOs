@@ -10,8 +10,27 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 1 | 2026-10-28 | Maps / address search | Look up addresses after typing pauses; say which map search failed | `2959a5e` |
 | 2 | 2026-10-30 | Driver app | Trip actions wait for the database before moving the screen on | `ab82773` |
 | 3 | 2026-10-30 | Admin / drivers | Remove-driver button reports when removal fails | `3e15c02` |
+| 4 | 2026-10-30 | Tests | Cash tests run without database settings | `87e13d2` |
 
 ---
+
+## 4. Cash tests run without database settings
+
+**Date:** 2026-10-30 · **Commit:** `87e13d2` · **Status:** pushed to the fork
+
+### The issue
+
+`src/lib/cash.test.ts` checks the driver's cash maths (cash to hand over, expenses, net earnings). It imported three small helpers from `useDriverCash.ts`, which also opens the Supabase connection, and that connection throws when there's no `.env`. So the whole test file failed to load: the 6 cash tests never ran on a machine without keys, and they would fail on any CI server.
+
+### What changed
+
+- The three helpers (`toBookingId`, `rowToExpense`, `rowToCollection`) moved unchanged into a new file, `src/components/driver/cashRows.ts`, which has no database import.
+- `useDriverCash.ts` and the test now import them from there.
+
+### Checks
+
+- With `.env` moved aside: 5 of 5 test files, 25 of 25 tests pass. Before: 4 of 5 files, and the cash tests never ran.
+- Type check passes; no lint problems in the changed files.
 
 ## 3. Remove-driver button reports when removal fails
 
