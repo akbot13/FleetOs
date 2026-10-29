@@ -17,8 +17,36 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 8 | 2026-10-30 | Admin / messaging (addition) | One-tap WhatsApp messages for bookings; Call button dials | `9f63801` |
 | 9 | 2026-10-30 | Admin / reports (addition) | Download bookings for Excel | `312728b` |
 | 10 | 2026-10-30 | Customer (addition) | Share my ride with family | `69853c5` |
+| 11 | 2026-10-30 | Admin / receipts (addition) | Printable trip receipt | `69dfd8e` |
 
 ---
+
+## 11. Printable trip receipt (addition)
+
+**Date:** 2026-10-30 · **Commit:** `69dfd8e` · **Status:** pushed to the fork; receipt tested locally with a sample booking. *A new feature, easy to remove.*
+
+### The issue
+
+Customers, especially corporate and outstation ones, ask for a bill. FleetOs had no receipt, so the fleet had to write one by hand or send a screenshot.
+
+### What changed
+
+- A **Receipt** button in the admin's booking panel (`ReceiptButton.tsx`), shown when the booking has a fare.
+- It opens a clean, phone-friendly receipt in a new tab (`src/lib/receipt.ts`):
+  - fleet name, receipt number and date issued;
+  - customer, trip type, car size, pickup, drop and trip date;
+  - fare, amount paid and how (cash / UPI) and when, then either "Paid in full" or the **balance due** in red with the fleet's **UPI ID** to pay it.
+- A **Print or save as PDF** button uses the browser's print dialog, so it works on phones and computers with no PDF library. The button hides itself on the printout.
+- Customer-typed text (names, addresses) is escaped, so it can't inject anything into the page.
+- If the browser blocks the new tab, the admin is told to allow pop-ups.
+
+GST lines aren't on the receipt yet: they need the fleet's GSTIN and the rate card's tax setting (change #6) applied first.
+
+### Checks
+
+- 3 new unit tests: content, balance due with UPI, and escaping. All tests pass; type check passes; no new lint problems.
+- Locally, on a temporary preview page with a sample booking: the receipt renders correctly at phone width. Screenshot: `resources/screenshots/2026-10-30-trip-receipt.jpg`.
+- The button inside the real admin panel wasn't clicked, since that needs an admin login.
 
 ## 10. "Share my ride" for customers (addition)
 
