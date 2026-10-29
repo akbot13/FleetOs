@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { OlaMapsApiError, describeSearchFailures, olaGeocode } from './olaMaps';
 
 describe('describeSearchFailures', () => {
@@ -18,9 +18,17 @@ describe('describeSearchFailures', () => {
   });
 });
 
-// No map keys are set in tests, so olaGeocode goes straight to OpenStreetMap.
+// With the map keys cleared, olaGeocode goes straight to OpenStreetMap: one request per lookup,
+// whatever is in the developer's .env.
 describe('olaGeocode', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  beforeEach(() => {
+    vi.stubEnv('VITE_OLA_MAPS_API_KEY', '');
+    vi.stubEnv('VITE_MAPPLS_ACCESS_TOKEN', '');
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
 
   const found = () => new Response(JSON.stringify([
     { place_id: 1, display_name: 'Jaipur Junction, Jaipur', name: 'Jaipur Junction', lat: '26.92', lon: '75.79' },

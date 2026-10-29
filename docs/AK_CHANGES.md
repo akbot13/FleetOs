@@ -138,6 +138,7 @@ The code made this worse in two ways:
 ### Checks
 
 - Unit tests: 19 of 19 pass. `cash.test.ts` still fails to load without a `.env`; that problem predates this change.
+- **Correction (2026-10-30):** the new `olaGeocode` tests assumed no map keys were set. Once a `.env` with Ola and Mappls keys existed, each lookup made three requests and 2 tests failed. Fixed in a follow-up commit: the tests now clear the map keys themselves and pass with or without a `.env`.
 - Type check and production build pass.
 - Lint: no new problems in the changed files (20 before, 20 after; all existed already).
 - **Browser test, 2026-10-30,** running locally (`npm run dev`, http://localhost:8080) against the live database, read-only (nothing saved):
