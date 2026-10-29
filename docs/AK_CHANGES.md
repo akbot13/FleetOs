@@ -9,8 +9,30 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | --- | --- | --- | --- | --- |
 | 1 | 2026-10-28 | Maps / address search | Look up addresses after typing pauses; say which map search failed | `2959a5e` |
 | 2 | 2026-10-30 | Driver app | Trip actions wait for the database before moving the screen on | `ab82773` |
+| 3 | 2026-10-30 | Admin / drivers | Remove-driver button reports when removal fails | `3e15c02` |
 
 ---
+
+## 3. Remove-driver button reports when removal fails
+
+**Date:** 2026-10-30 · **Commit:** `3e15c02` · **Status:** pushed to the fork; type check passes; not clicked in a browser (it deletes a real driver)
+
+### The issue
+
+On the admin Drivers list, the **Remove** button for temporary drivers (`AdminDashboard.tsx`) deleted the driver without checking the reply, then always said "<name> removed". A driver who has done any trip or cash handover can't be deleted (the database protects their history), so the delete failed silently and the admin believed the driver was gone.
+
+The **Reject** button for new applicants did check, but showed the raw database error.
+
+### What changed
+
+- Remove now uses the same handler as Reject: it shows a loading state, refreshes the list only on success, and reports failures.
+- A driver with history gets a plain message: *"<name> has trips or cash records, so they can't be removed. Their history has to stay."* Other failures show *"Couldn't remove <name>: <reason>"*.
+
+A proper way to retire a driver (deactivate instead of delete) needs a database change; it's on the list as a database item for Shivam.
+
+### Checks
+
+- Type check passes; lint unchanged in the file (7 before, 7 after, all existing).
 
 ## 2. Driver trip actions wait for the database before moving on
 
