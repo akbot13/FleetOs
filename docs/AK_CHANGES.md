@@ -15,8 +15,29 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 6 | 2026-10-30 | Pricing | Rate cards: any pricing model per trip type (migration not applied) | `7ffe6dd` |
 | 7 | 2026-10-30 | Pricing / admin | Rate card editor on the Pricing screen (preview until migration) | `ac6268c` |
 | 8 | 2026-10-30 | Admin / messaging (addition) | One-tap WhatsApp messages for bookings; Call button dials | `9f63801` |
+| 9 | 2026-10-30 | Admin / reports (addition) | Download bookings for Excel | `312728b` |
 
 ---
+
+## 9. Download bookings for Excel (addition)
+
+**Date:** 2026-10-30 · **Commit:** `312728b` · **Status:** pushed to the fork; spreadsheet contents unit-tested; button not clicked in a browser. *A new feature, easy to remove.*
+
+### The issue
+
+The Collections screen showed a day, week or month of bookings and payments, but there was no way to get them out. A fleet owner doing accounts, GST or driver settlements had to copy numbers by hand.
+
+### What changed
+
+- A **Download for Excel** button on the Collections screen saves the period on screen as a `.csv` file (e.g. `bookings-2026-10-01-to-2026-10-31.csv`), which opens in Excel or Google Sheets.
+- Columns: booking ID, date and time (India time), customer, pickup, drop, trip status, driver name, fare, collected, paid by, payment status (paid / partial / unpaid), paid at.
+- **Safe to open:** customer names and addresses are typed by the public, and a cell starting with `=`, `+`, `-` or `@` could run as a formula in Excel. Such text gets a leading apostrophe; real numbers are untouched. The file also carries a marker so Excel shows ₹ and Hindi text correctly.
+- `src/lib/csv.ts` is a small reusable helper for any future export.
+
+### Checks
+
+- 3 new unit tests: quoting, empty cells, and formula neutralising. All tests pass; type check passes; no new lint problems (6 existing in the file).
+- Not clicked in a browser: the Collections screen needs an admin login, and a test download would save a file to your Downloads folder.
 
 ## 8. One-tap WhatsApp messages for bookings (addition)
 
