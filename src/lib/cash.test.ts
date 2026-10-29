@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { summarizeCash, formatSignedRupees } from './cash';
-import { toBookingId, rowToCollection, rowToExpense } from '@/components/driver/useDriverCash';
+import { toBookingId, rowToCollection, rowToExpense } from '@/components/driver/cashRows';
 
 describe('summarizeCash', () => {
   it('hands over cash only, minus what the driver spent', () => {
