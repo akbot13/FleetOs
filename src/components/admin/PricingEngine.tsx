@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOrg } from '@/hooks/useOrg';
 import { useOrgPricing } from '@/hooks/useSupabaseData';
 import { vehicleClassLabel, type VehicleClass } from '@/lib/dispatch';
+import { RateCardEditor } from './RateCardEditor';
 
 type FieldKey =
   | 'city_base_fare'
@@ -73,6 +74,7 @@ export function PricingEngine() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<'card' | 'basic'>('card');
 
   const saved = useMemo<FormState>(() => {
     const next = { ...emptyForm };
@@ -176,11 +178,22 @@ export function PricingEngine() {
           </div>
           <h1 className="text-xl font-bold text-primary-foreground">Fare Configuration</h1>
           <p className="text-xs text-primary-foreground/60 mt-1">Set your rate card. Customers are charged these fares as soon as you save.</p>
+          <div className="mt-4 inline-flex rounded-full bg-primary-foreground/10 p-1" role="tablist" aria-label="Pricing views">
+            {([['card', 'Rate card'], ['basic', 'Basic rates']] as const).map(([id, label]) => (
+              <button
+                key={id} type="button" role="tab" aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition ${tab === id ? 'bg-secondary text-secondary-foreground' : 'text-primary-foreground/70 hover:text-primary-foreground'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       <div className="max-w-5xl mx-auto px-6 -mt-3 pb-8 space-y-4">
-        {isLoading ? (
+        {tab === 'card' ? <RateCardEditor /> : isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : (
           <>
