@@ -32,6 +32,7 @@ export function DriverApp({ driver }: DriverAppProps) {
   const [collectAmount, setCollectAmount] = useState('');
   const [collectMethod, setCollectMethod] = useState<'cash' | 'upi'>('cash');
   const [collectLoading, setCollectLoading] = useState(false);
+  const [tripSaving, setTripSaving] = useState(false);
   const [showUpiDetails, setShowUpiDetails] = useState(false);
   const [bannerTrips, setBannerTrips] = useState<string[]>([]);
   const [alarmTrips, setAlarmTrips] = useState<string[]>([]);
@@ -288,38 +289,56 @@ export function DriverApp({ driver }: DriverAppProps) {
     if (!isNaN(bookingId)) handleConfirm(bookingId);
   };
 
-  const handleConfirm = async (bookingId: number) => {
-    if (!myProfile?.id) return;
-    const db = supabase;
-    await db.from('bookings').update({ status: 'confirmed', driver_confirmed_at: new Date().toISOString() }).eq('id', bookingId);
-    queryClient.invalidateQueries({ queryKey: ['driver-trips', myProfile.id, org?.id] });
+  const refreshTrips = () => {
+    queryClient.invalidateQueries({ queryKey: ['driver-trips', myProfile?.id, org?.id] });
     queryClient.invalidateQueries({ queryKey: ['bookings'] });
     queryClient.invalidateQueries({ queryKey: ['drivers'] });
   };
 
-  const handleStart = async (bookingId: number) => {
+  // Trip changes only count once the database has them: on a failed save the screen stays
+  // where it was, so the driver never sees "started" or "completed" for a trip the office doesn't.
+  const reportSaveError = (what: string, message: string) => {
+    toast.error(`Couldn't ${what}. ${message}. Check your connection and try again.`);
+  };
+
+  const handleConfirm = async (bookingId: number) => {
     if (!myProfile?.id) return;
+    const { error } = await supabase.from('bookings').update({ status: 'confirmed', driver_confirmed_at: new Date().toISOString() }).eq('id', bookingId);
+    if (error) {
+      setScheduledTrips(trips => trips.map(t => t.id === `BK-${bookingId}` ? { ...t, status: 'pending_confirm' } : t));
+      reportSaveError('confirm the trip', error.message);
+    }
+    refreshTrips();
+  };
+
+  const handleStart = async (bookingId: number): Promise<boolean> => {
+    if (!myProfile?.id) return false;
+    const { error } = await supabase.from('bookings').update({ status: 'in-progress', trip_started_at: new Date().toISOString() }).eq('id', bookingId);
+    if (error) {
+      reportSaveError('start the trip', error.message);
+      return false;
+    }
     setScheduledTrips(trips => sortTripsBySchedule(
       trips.map(trip => trip.id === `BK-${bookingId}` ? { ...trip, status: 'active' } : trip)
     ));
+    // The duty status also follows the active trip through the status sync above, so a miss here heals itself.
     await supabase.from('drivers').update({ status: 'on-trip' }).eq('id', myProfile.id);
-    await supabase.from('bookings').update({ status: 'in-progress', trip_started_at: new Date().toISOString() }).eq('id', bookingId);
-    queryClient.invalidateQueries({ queryKey: ['driver-trips', myProfile.id, org?.id] });
-    queryClient.invalidateQueries({ queryKey: ['bookings'] });
-    queryClient.invalidateQueries({ queryKey: ['drivers'] });
+    refreshTrips();
+    return true;
   };
 
-  const handleComplete = async (bookingId: number) => {
-    if (!myProfile?.id) return;
+  const handleComplete = async (bookingId: number): Promise<boolean> => {
+    if (!myProfile?.id) return false;
+    const { error } = await supabase.from('bookings').update({ status: 'completed', trip_completed_at: new Date().toISOString() }).eq('id', bookingId);
+    if (error) {
+      reportSaveError('end the trip', error.message);
+      return false;
+    }
     setScheduledTrips(trips => trips.filter(trip => trip.id !== `BK-${bookingId}`));
     setBannerTrips(trips => trips.filter(tripId => tripId !== `BK-${bookingId}`));
     setAlarmTrips(trips => trips.filter(tripId => tripId !== `BK-${bookingId}`));
-    const db = supabase;
-    await db.from('bookings').update({ status: 'completed', trip_completed_at: new Date().toISOString() }).eq('id', bookingId);
-    await db.from('drivers').update({ status: 'free' }).eq('id', myProfile.id);
-    queryClient.invalidateQueries({ queryKey: ['driver-trips', myProfile.id, org?.id] });
-    queryClient.invalidateQueries({ queryKey: ['bookings'] });
-    queryClient.invalidateQueries({ queryKey: ['drivers'] });
+    await supabase.from('drivers').update({ status: 'free' }).eq('id', myProfile.id);
+    refreshTrips();
     const completedTrip = realTrips.find(t => t.id === bookingId);
     if (completedTrip) {
       await queueFeedbackMessage(completedTrip, org);
@@ -327,17 +346,51 @@ export function DriverApp({ driver }: DriverAppProps) {
     setCollectBookingId(bookingId);
     setCollectAmount(String(completedTrip?.fare ?? ''));
     setCollectMethod(completedTrip?.payment_method === 'upi' ? 'upi' : 'cash');
+    return true;
+  };
+
+  const handleOdometerPhoto = async (kind: 'start' | 'end', file: File | undefined) => {
+    if (!file || !myProfile?.id) return;
+    const label = kind === 'start' ? 'start' : 'end';
+    const fileName = `odometer_${kind}_${myProfile.id}_${Date.now()}.jpg`;
+    const { error: uploadError } = await supabase.storage
+      .from('odometer-photos')
+      .upload(fileName, file, { upsert: true });
+    if (uploadError) {
+      reportSaveError(`upload the ${label} odometer photo`, uploadError.message);
+      return;
+    }
+    const { data: urlData } = supabase.storage.from('odometer-photos').getPublicUrl(fileName);
+    const { error } = await supabase
+      .from('drivers')
+      .update(kind === 'start' ? { odometer_start_photo: urlData.publicUrl } : { odometer_end_photo: urlData.publicUrl })
+      .eq('id', myProfile.id);
+    if (error) {
+      reportSaveError(`save the ${label} odometer photo`, error.message);
+      return;
+    }
+    toast(`${kind === 'start' ? 'Start' : 'End'} odometer photo saved ✓`);
   };
 
   const handleLogPayment = async () => {
     if (!collectBookingId) return;
-    setCollectLoading(true);
     const paidAmount = Number(collectAmount);
-    await supabase.from('bookings').update({
+    if (!Number.isFinite(paidAmount) || paidAmount < 0) {
+      toast.error('Enter the amount collected, in rupees.');
+      return;
+    }
+    setCollectLoading(true);
+    const { error } = await supabase.from('bookings').update({
       amount_collected: paidAmount,
       payment_method: collectMethod,
       payment_confirmed_at: new Date().toISOString(),
     }).eq('id', collectBookingId);
+    if (error) {
+      // Keep the payment form open with what was typed, so the driver can retry.
+      setCollectLoading(false);
+      reportSaveError('save the payment', error.message);
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ['driver-trips', myProfile?.id, org?.id] });
     queryClient.invalidateQueries({ queryKey: ['bookings'] });
     const paidTrip = realTrips.find(t => t.id === collectBookingId);
@@ -741,34 +794,24 @@ export function DriverApp({ driver }: DriverAppProps) {
                           accept="image/*"
                           capture="environment"
                           className="hidden"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file || !myProfile?.id) return;
-                            const fileName = `odometer_start_${myProfile.id}_${Date.now()}.jpg`;
-                            const { data: uploadData } = await supabase.storage
-                              .from('odometer-photos')
-                              .upload(fileName, file, { upsert: true });
-                            if (uploadData) {
-                              const { data: urlData } = supabase.storage
-                                .from('odometer-photos')
-                                .getPublicUrl(fileName);
-                              await supabase.from('drivers').update({ odometer_start_photo: urlData.publicUrl }).eq('id', myProfile.id);
-                              toast('Start odometer photo saved ✓');
-                            }
-                          }}
+                          onChange={e => void handleOdometerPhoto('start', e.target.files?.[0])}
                         />
                       </label>
                     </div>
                   )}
                   <button
-                    onClick={() => {
-                      setTripPhase('started');
+                    disabled={tripSaving}
+                    onClick={async () => {
                       const t = sortedTrips.find(t => t.status === 'confirmed');
-                      if (t) { const id = parseInt(t.id.replace('BK-', '')); if (!isNaN(id)) handleStart(id); }
+                      const id = t ? parseInt(t.id.replace('BK-', ''), 10) : NaN;
+                      if (isNaN(id)) { setTripPhase('started'); return; }
+                      setTripSaving(true);
+                      if (await handleStart(id)) setTripPhase('started');
+                      setTripSaving(false);
                     }}
-                    className="w-full py-3.5 rounded-xl bg-green-500 hover:bg-green-400 active:scale-95 transition-all text-white font-bold"
+                    className="w-full py-3.5 rounded-xl bg-green-500 hover:bg-green-400 active:scale-95 transition-all text-white font-bold disabled:opacity-60"
                   >
-                    Start Trip
+                    {tripSaving ? 'Starting…' : 'Start Trip'}
                   </button>
                 </div>
                 )}
@@ -785,34 +828,24 @@ export function DriverApp({ driver }: DriverAppProps) {
                           accept="image/*"
                           capture="environment"
                           className="hidden"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file || !myProfile?.id) return;
-                            const fileName = `odometer_end_${myProfile.id}_${Date.now()}.jpg`;
-                            const { data: uploadData } = await supabase.storage
-                              .from('odometer-photos')
-                              .upload(fileName, file, { upsert: true });
-                            if (uploadData) {
-                              const { data: urlData } = supabase.storage
-                                .from('odometer-photos')
-                                .getPublicUrl(fileName);
-                              await supabase.from('drivers').update({ odometer_end_photo: urlData.publicUrl }).eq('id', myProfile.id);
-                              toast('End odometer photo saved ✓');
-                            }
-                          }}
+                          onChange={e => void handleOdometerPhoto('end', e.target.files?.[0])}
                         />
                       </label>
                     </div>
                   )}
                   <button
-                    onClick={() => {
-                      setTripPhase('completed');
+                    disabled={tripSaving}
+                    onClick={async () => {
                       const t = sortedTrips.find(t => t.status === 'active');
-                      if (t) { const id = parseInt(t.id.replace('BK-', '')); if (!isNaN(id)) handleComplete(id); }
+                      const id = t ? parseInt(t.id.replace('BK-', ''), 10) : NaN;
+                      if (isNaN(id)) { setTripPhase('completed'); return; }
+                      setTripSaving(true);
+                      if (await handleComplete(id)) setTripPhase('completed');
+                      setTripSaving(false);
                     }}
-                    className="w-full py-3.5 rounded-xl bg-red-500 hover:bg-red-400 active:scale-95 transition-all text-white font-bold"
+                    className="w-full py-3.5 rounded-xl bg-red-500 hover:bg-red-400 active:scale-95 transition-all text-white font-bold disabled:opacity-60"
                   >
-                    End Trip · {formatCurrency(activeTrip?.fare ?? 0)}
+                    {tripSaving ? 'Ending…' : `End Trip · ${formatCurrency(activeTrip?.fare ?? 0)}`}
                   </button>
                 </div>
               )}              {tripPhase === 'completed' && (

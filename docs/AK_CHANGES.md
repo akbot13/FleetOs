@@ -8,8 +8,34 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | # | Date | Area | Change | Commit |
 | --- | --- | --- | --- | --- |
 | 1 | 2026-10-28 | Maps / address search | Look up addresses after typing pauses; say which map search failed | `2959a5e` |
+| 2 | 2026-10-30 | Driver app | Trip actions wait for the database before moving the screen on | see git log |
 
 ---
+
+## 2. Driver trip actions wait for the database before moving on
+
+**Date:** 2026-10-30 · **Status:** pushed to the fork; type check passes; not clicked through in a browser (that needs a real driver sign-in, which writes to the live database)
+
+### The issue
+
+In the driver app (`src/components/driver/DriverApp.tsx`), Confirm, Start Trip, End Trip, Log payment and the odometer photo uploads sent their change to the database and then carried on without checking the reply. On a weak network, or if a database rule refused the change, the driver saw "Trip started" or "Trip completed" and the payment form closed, while the database still had the old state. The office then saw a trip that never started, or a payment that was never recorded, and the driver had no idea anything went wrong.
+
+### What changed
+
+| Action | Before | Now |
+| --- | --- | --- |
+| Confirm trip | Marked confirmed on screen whatever happened | On failure, goes back to "needs confirming" and shows an error |
+| Start Trip | Screen moved to "started" before saving | Saves first; screen moves only once the database has it. The button shows "Starting…" and can't be tapped twice. |
+| End Trip | Screen moved to "completed" and the trip vanished from the list before saving | Saves first; on failure the trip stays active with an error. Shows "Ending…". |
+| Log payment | Form closed and the collection was added to the driver's cash whatever happened | On failure the form stays open with the amount typed, and nothing is added to the cash total. A blank or negative amount is refused. |
+| Odometer photos | "Saved ✓" only on success, silent on failure | A failed upload or save shows an error. Both buttons now share one function instead of two copies. |
+
+Errors read like: *"Couldn't end the trip. <reason>. Check your connection and try again."*
+
+### Checks
+
+- Type check passes; no lint problems in the file.
+- Not tested in a browser: the driver app needs a PIN sign-in, which links the browser to a real driver on the live database.
 
 ## 1. Look up addresses after typing pauses; say which map search failed
 
