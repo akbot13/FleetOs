@@ -110,6 +110,38 @@ console.log(`same as previous quote_fare: ${compared} combinations checked`);
   console.log('customer distance ignored: checked');
 }
 
+// 3. set_driver_pin(): the original (20261025010000) can't save a PIN; the fix (20261030010000)
+//    can. PGlite has no pgcrypto, so crypt() and gen_salt() are stand-ins: this checks the table
+//    the PIN goes to, not the hashing.
+{
+  await db.exec(`
+    CREATE SCHEMA IF NOT EXISTS extensions;
+    CREATE FUNCTION extensions.gen_salt(text) RETURNS text LANGUAGE sql AS $$ SELECT 'salt' $$;
+    CREATE FUNCTION extensions.crypt(text, text) RETURNS text LANGUAGE sql AS $$ SELECT 'hash:' || $1 $$;
+    CREATE TABLE public.drivers (id bigint PRIMARY KEY, org_id uuid, auth_user_id uuid);
+    CREATE TABLE public.driver_pins (driver_id bigint PRIMARY KEY, pin_hash text NOT NULL,
+      failed_attempts int NOT NULL DEFAULT 0, locked_until timestamptz, updated_at timestamptz NOT NULL DEFAULT now());
+    INSERT INTO public.drivers VALUES (1, '00000000-0000-0000-0000-000000000001', gen_random_uuid());
+    CREATE OR REPLACE FUNCTION public.is_org_admin(uuid) RETURNS boolean LANGUAGE sql AS 'SELECT true';
+  `);
+  const functionFrom = (file) => {
+    const sql = read(`supabase/migrations/${file}`);
+    return sql.slice(sql.indexOf('CREATE OR REPLACE FUNCTION public.set_driver_pin('), sql.indexOf('REVOKE ALL ON FUNCTION public.set_driver_pin('));
+  };
+  await db.exec(functionFrom('20261025010000_driver_pin_sign_in.sql'));
+  let originalFailed = false;
+  try { await db.query(`SELECT public.set_driver_pin(1, '123456')`); } catch { originalFailed = true; }
+  if (!originalFailed) fail('the original set_driver_pin() was expected to fail on sdpublic.driver_pins');
+
+  await db.exec(read('supabase/migrations/20261030010000_fix_set_driver_pin_schema.sql').replace(/NOTIFY pgrst[^;]*;/, ''));
+  await db.query(`SELECT public.set_driver_pin(1, '123456')`);
+  const { rows } = await db.query('SELECT pin_hash FROM public.driver_pins WHERE driver_id = 1');
+  const { rows: driver } = await db.query('SELECT auth_user_id FROM public.drivers WHERE id = 1');
+  if (rows[0]?.pin_hash !== 'hash:123456') fail(`fixed set_driver_pin() should save the PIN, got ${JSON.stringify(rows)}`);
+  if (driver[0]?.auth_user_id !== null) fail('setting a PIN should sign the driver out');
+  console.log('set_driver_pin: original fails, fix saves the PIN');
+}
+
 await db.close();
 if (failures > 0) {
   console.error(`${failures} failure(s)`);
