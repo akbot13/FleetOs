@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  whatsappNumber, whatsappLink, customerConfirmationMessage, customerDriverMessage, driverTripMessage,
+  whatsappNumber, whatsappLink, customerConfirmationMessage, customerDriverMessage, driverTripMessage, shareRideMessage,
 } from './whatsappMessages';
 
 const booking = {
@@ -45,5 +45,17 @@ describe('messages', () => {
     expect(text).toContain('https://www.google.com/maps/search/?api=1&query=Jaipur%20Junction');
     expect(text).not.toContain('Drop:');
     expect(text).not.toContain('Note:');
+  });
+});
+
+describe('shareRideMessage', () => {
+  it('names the route, driver and car, with the live link', () => {
+    const text = shareRideMessage({ pickup: 'Jaipur Junction', drop: 'Hawa Mahal' }, driver, 'https://x.app/?track=t');
+    expect(text).toBe("I'm taking a cab from Jaipur Junction to Hawa Mahal.\nDriver: Dinesh Meena (Maruti Swift, RJ14 AB 1234)\nFollow my ride live: https://x.app/?track=t");
+  });
+
+  it('works before a driver is assigned', () => {
+    expect(shareRideMessage({ pickup: 'Jaipur Junction', drop: null }, null, 'L'))
+      .toBe("I'm taking a cab from Jaipur Junction.\nFollow my ride live: L");
   });
 });

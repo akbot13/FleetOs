@@ -89,3 +89,17 @@ export function driverTripMessage(b: MessageBooking, brand: string) {
     map && `Map: ${map}`,
   );
 }
+
+// What a customer sends family or friends so they can follow the ride.
+export function shareRideMessage(
+  trip: { pickup: string | null; drop: string | null },
+  driver: { name: string | null; vehicle_model: string | null; plate_number: string | null } | null,
+  link: string,
+) {
+  const car = driver ? [driver.vehicle_model, driver.plate_number].filter(Boolean).join(', ') : '';
+  return lines(
+    `I'm taking a cab${trip.pickup ? ` from ${trip.pickup}` : ''}${trip.drop ? ` to ${trip.drop}` : ''}.`,
+    driver?.name ? `Driver: ${driver.name}${car ? ` (${car})` : ''}` : null,
+    `Follow my ride live: ${link}`,
+  );
+}

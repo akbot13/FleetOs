@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle, Copy, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle, Copy, Loader2, Share2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { TripPreviewMap } from '@/components/maps/TripPreviewMap';
 import { useToast } from '@/hooks/use-toast';
 import { isClosedStatus, useBookingStatus } from '@/hooks/useBookingStatus';
 import { clearSavedTrackingToken, trackingLink } from '@/lib/trackingStorage';
+import { shareRideMessage } from '@/lib/whatsappMessages';
 
 interface TrackBookingProps {
   token: string;
@@ -47,6 +48,23 @@ export function TrackBooking({ token, fallbackPickup, fallbackDrop, onDone }: Tr
     } catch {
       toast({ title: 'Could not copy the link', description: trackingLink(token), variant: 'destructive' });
     }
+  };
+
+  // The phone's share sheet where there is one (most mobiles); otherwise WhatsApp, where the
+  // customer picks who to send it to.
+  const shareRide = async () => {
+    if (!booking) return;
+    const link = trackingLink(token);
+    const text = shareRideMessage({ pickup: booking.pickup, drop: booking.drop }, booking.driver, link);
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: 'Follow my ride', text });
+        return;
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+      }
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   };
 
   if (isLoading) {
@@ -156,6 +174,12 @@ export function TrackBooking({ token, fallbackPickup, fallbackDrop, onDone }: Tr
       </Card>
 
       <div className="space-y-2 max-w-xs mx-auto">
+        {!closed && (
+          <Button onClick={shareRide} className="w-full h-11 rounded-xl font-semibold bg-[#25D366] text-white hover:bg-[#1ebe5a]">
+            <Share2 className="h-4 w-4 mr-2" />
+            Share my ride
+          </Button>
+        )}
         {!closed && (
           <Button variant="outline" onClick={copyLink} className="w-full h-11 rounded-xl font-semibold">
             <Copy className="h-4 w-4 mr-2" />
