@@ -350,7 +350,10 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
     setApprovalLoading(prev => ({ ...prev, [driver.id]: true }));
     const { error } = await supabase.from('drivers').delete().eq('id', driver.id);
     if (error) {
-      toast.error(error.message);
+      // 23503: the driver still has trips or cash handovers pointing at them.
+      toast.error(error.code === '23503'
+        ? `${driver.name ?? 'This driver'} has trips or cash records, so they can't be removed. Their history has to stay.`
+        : `Couldn't remove ${driver.name ?? 'the driver'}: ${error.message}`);
     } else {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       toast(`${driver.name ?? 'Driver'} removed`);
@@ -730,11 +733,10 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                           size="sm"
                           variant="outline"
                           className="h-9 border-destructive text-destructive hover:bg-destructive/10 rounded-lg text-xs"
-                          onClick={async (e) => {
+                          disabled={approvalLoading[driver.id]}
+                          onClick={(e) => {
                             e.stopPropagation();
-                            await supabase.from('drivers').delete().eq('id', driver.id);
-                            queryClient.invalidateQueries({ queryKey: ['drivers'] });
-                            toast(`${driver.name ?? 'Driver'} removed`);
+                            void handleReject(driver);
                           }}
                         >
                           Remove
