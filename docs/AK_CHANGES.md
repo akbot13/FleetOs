@@ -11,8 +11,35 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 2 | 2026-10-30 | Driver app | Trip actions wait for the database before moving the screen on | `ab82773` |
 | 3 | 2026-10-30 | Admin / drivers | Remove-driver button reports when removal fails | `3e15c02` |
 | 4 | 2026-10-30 | Tests | Cash tests run without database settings | `87e13d2` |
+| 5 | 2026-10-30 | Performance | Staff screens download only when opened | `f46bc0f` |
 
 ---
+
+## 5. Staff screens download only when opened
+
+**Date:** 2026-10-30 · **Commit:** `f46bc0f` · **Status:** pushed to the fork; tested locally
+
+### The issue
+
+Most visitors are customers booking a ride, but `src/pages/Index.tsx` loaded the admin dashboard, driver app, pricing screen and both sign-in screens at startup. Every customer downloaded all of it: an 803 KB main file (229 KB compressed), slow to open on a phone on mobile data. The team's own review lists this as FO-18.
+
+### What changed
+
+The admin dashboard, admin shell, driver app, driver sign-in, admin sign-in and pricing screen now load the first time someone opens them, with a spinner while they load. The customer screen still loads straight away.
+
+| | Before | After |
+| --- | --- | --- |
+| Main file | 803 KB (229 KB gzipped) | 598 KB (178 KB gzipped) |
+| Admin dashboard | in main file | separate, 63 KB |
+| Driver app | in main file | separate, 66 KB |
+| New booking sheet | in main file | separate, 40 KB |
+
+The main file is still above Vite's 500 KB warning: most of what's left is React, the Supabase library and the UI kit, which every screen needs.
+
+### Checks
+
+- Type check and build pass; 25 of 25 tests pass.
+- Locally in Chrome: the customer screen, admin sign-in and driver sign-in all open, with no console errors. The admin dashboard and driver app themselves weren't opened, since that needs a real sign-in.
 
 ## 4. Cash tests run without database settings
 
