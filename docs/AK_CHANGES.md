@@ -14,8 +14,34 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 5 | 2026-10-30 | Performance | Staff screens download only when opened | `f46bc0f` |
 | 6 | 2026-10-30 | Pricing | Rate cards: any pricing model per trip type (migration not applied) | `7ffe6dd` |
 | 7 | 2026-10-30 | Pricing / admin | Rate card editor on the Pricing screen (preview until migration) | `ac6268c` |
+| 8 | 2026-10-30 | Admin / messaging (addition) | One-tap WhatsApp messages for bookings; Call button dials | `9f63801` |
 
 ---
+
+## 8. One-tap WhatsApp messages for bookings (addition)
+
+**Date:** 2026-10-30 · **Commit:** `9f63801` · **Status:** pushed to the fork; buttons tested locally with sample data. *A new feature, easy to remove if you don't want it.*
+
+### The issue
+
+- **Customers never got their driver's details.** The tracking page told customers "Driver and trip details will be shared with you on SMS and WhatsApp" and "have been queued for SMS and WhatsApp delivery", but no SMS or WhatsApp provider is connected (and Indian SMS needs DLT registration first). Nothing was ever sent.
+- **Admins had to type trip details to drivers by hand** in WhatsApp.
+- **The Call button on each booking card did nothing**: its click only stopped the card from opening.
+
+### What changed
+
+- **WhatsApp buttons in the admin's booking panel** (`BookingWhatsApp.tsx`, messages in `src/lib/whatsappMessages.ts`). Each one opens WhatsApp with the message already typed; the admin checks it and presses send. No provider, cost or approval needed.
+  - No driver yet: **Send booking confirmation to customer**, with pickup, drop, time, fare and the customer's tracking link.
+  - Driver assigned: **Send driver details to customer**, with driver, car, plate, phone and the live tracking link; and **Send trip to driver**, with the customer, phone, pickup, drop, time, fare, note and a Google Maps link to the pickup.
+  - Times are in India time. A button is hidden if the phone number isn't a valid Indian mobile.
+- **Call** on booking cards now dials the customer, and is hidden when there's no phone number.
+- **Tracking page wording** now says what really happens: driver details appear on the page once assigned.
+
+### Checks
+
+- 5 new unit tests (phone formats, message content, missing parts left out). All 53 tests pass; type check passes; no new lint problems.
+- Locally, on a temporary preview page with sample data (no real booking): buttons render at phone width, and the links contain the right numbers and messages, using the fleet name "Anil Cabs" read from the database. Screenshot: `resources/screenshots/2026-10-30-whatsapp-buttons.jpg`.
+- Not seen inside the real admin booking panel, which needs an admin login.
 
 ## 7. Rate card editor on the Pricing screen
 
