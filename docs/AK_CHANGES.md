@@ -16,8 +16,29 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 7 | 2026-10-30 | Pricing / admin | Rate card editor on the Pricing screen (preview until migration) | `ac6268c` |
 | 8 | 2026-10-30 | Admin / messaging (addition) | One-tap WhatsApp messages for bookings; Call button dials | `9f63801` |
 | 9 | 2026-10-30 | Admin / reports (addition) | Download bookings for Excel | `312728b` |
+| 10 | 2026-10-30 | Customer (addition) | Share my ride with family | `69853c5` |
 
 ---
+
+## 10. "Share my ride" for customers (addition)
+
+**Date:** 2026-10-30 · **Commit:** `69853c5` · **Status:** pushed to the fork; tested locally with a sample booking. *A new feature, easy to remove.*
+
+### The issue
+
+A customer riding alone, often at night or out of town, had no easy way to let family follow the trip. The tracking page only had "Copy tracking link", which then has to be pasted into a message with no context. Sharing ride details is a standard safety feature in Indian cab apps.
+
+### What changed
+
+- A green **Share my ride** button on the customer's tracking page, above "Copy tracking link", shown while the trip is open.
+- On most phones it opens the phone's own **share sheet** (WhatsApp, SMS, Telegram, anything). Where there's no share sheet, as on most computers, it opens **WhatsApp** to pick a contact.
+- The message: *"I'm taking a cab from Jaipur Junction to Hawa Mahal. Driver: Dinesh Meena (Maruti Swift, RJ14 AB 1234). Follow my ride live: <link>"*. The driver line is left out until a driver is assigned.
+
+### Checks
+
+- 2 new unit tests for the message. All tests pass; type check and lint pass.
+- Locally, on a temporary preview page answering the booking lookup with a sample booking (no real booking or database read): the button shows at phone width, and with no share sheet it opened WhatsApp with the message above. Screenshot: `resources/screenshots/2026-10-30-share-my-ride.jpg`.
+- The phone share sheet itself wasn't tried; it needs a real phone.
 
 ## 9. Download bookings for Excel (addition)
 
