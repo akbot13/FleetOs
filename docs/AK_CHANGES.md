@@ -314,7 +314,7 @@ The main file is still above Vite's 500 KB warning: most of what's left is React
 
 ### Checks
 
-- Type check and build pass; 25 of 25 tests pass.
+- Type check and build pass. **Correction:** this entry first said 25 of 25 tests passed. With the map keys in `.env`, 2 of the olaMaps tests from change #1 actually failed at this commit; they were fixed in the next commit (`85a4a4e`, see #1), and all tests have passed since.
 - Locally in Chrome: the customer screen, admin sign-in and driver sign-in all open, with no console errors. The admin dashboard and driver app themselves weren't opened, since that needs a real sign-in.
 
 ## 4. Cash tests run without database settings
