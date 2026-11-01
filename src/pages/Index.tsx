@@ -169,25 +169,30 @@ const Index = () => {
 
   return (
     <div className="relative min-h-screen">
-      {view === 'customer' && <CustomerHome />}
+      {view === 'customer' && (
+        <CustomerHome
+          staffLinks={user ? undefined : { onDriver: () => handleSetView('driver'), onOwner: () => handleSetView('admin') }}
+        />
+      )}
       <Suspense fallback={screenLoading}>
-        {view === 'admin' && <AdminShell activeTab="dashboard"><AdminDashboard /></AdminShell>}
+        {view === 'admin' && <AdminShell activeTab="dashboard" onOpenPricing={() => handleSetView('pricing')}><AdminDashboard /></AdminShell>}
         {view === 'driver' && (canOpenDriverSurface
           ? <DriverApp driver={readStoredDriver()} />
-          : <DriverLoginPage onSignedIn={() => setDriverSignInCount(c => c + 1)} />)}
+          : <DriverLoginPage onSignedIn={() => setDriverSignInCount(c => c + 1)} onBack={() => handleSetView('customer')} />)}
         {view === 'pricing' && <PricingEngine />}
       </Suspense>
 
-      {/* Signed-in drivers have their own Log Out; on admin screens the switcher sits
-          at the bottom so it doesn't cover the header nav. */}
-      {!(view === 'driver' && canOpenDriverSurface) && (
+      {/* Staff switcher, for signed-in accounts only. Customers and signed-out visitors never see it:
+          they get quiet sign-in links on the customer home instead. Signed-in drivers have their own
+          Log Out; on admin screens the switcher sits at the bottom so it doesn't cover the header nav. */}
+      {user && !(view === 'driver' && canOpenDriverSurface) && (
       <div className={view === 'admin' || view === 'pricing'
         ? 'fixed bottom-6 left-1/2 -translate-x-1/2 z-50'
         : 'fixed top-4 right-4 z-50'}>
         <div className="flex items-center gap-1 bg-primary/95 backdrop-blur-sm rounded-full px-1.5 py-1.5 shadow-elevated">
           {([
             { id: 'customer' as AppView, label: 'Customer', icon: Car, show: true },
-            { id: 'driver' as AppView, label: 'Driver', icon: Car, show: !user || canOpenDriverSurface },
+            { id: 'driver' as AppView, label: 'Driver', icon: Car, show: canOpenDriverSurface },
             { id: 'admin' as AppView, label: 'Admin', icon: Settings, show: isAdmin },
             { id: 'pricing' as AppView, label: 'Pricing', icon: DollarSign, show: isAdmin },
           ])
@@ -204,16 +209,6 @@ const Index = () => {
                 {t.label}
               </button>
             ))}
-          {!user && (
-            <button
-              data-testid="open-login"
-              onClick={() => handleSetView('admin')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold text-primary-foreground/60 hover:text-primary-foreground transition"
-            >
-              <Settings className="h-3.5 w-3.5" />
-              Login
-            </button>
-          )}
           {user && (
             <button
               onClick={() => signOut()}

@@ -7,12 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { useDrivers, useBookings, useTodayCashHandovers, useDriverCollections, tripTypeIcons, tripTypeLabels, getDriverInitials, type CashHandover, type SupabaseBooking, type SupabaseDriver } from '@/hooks/useSupabaseData';
+import { useDrivers, useBookings, useTodayCashHandovers, useDriverCollections, tripTypeLabels, getDriverInitials, type CashHandover, type SupabaseBooking, type SupabaseDriver } from '@/hooks/useSupabaseData';
 import { useOrg } from '@/hooks/useOrg';
 import { DispatchEngine } from './DispatchEngine';
 import { PaymentSummary } from './PaymentSummary';
 import { CollectionsHistory } from './CollectionsHistory';
 import { NewBookingSheet } from './NewBookingSheet';
+import { AddDriverSheet } from './AddDriverSheet';
 import { BentoStats } from './BentoStats';
 import { DriverFleetList } from './DriverFleetList';
 import { vehicleClassLabel, type VehicleClass } from '@/lib/dispatch';
@@ -20,7 +21,9 @@ import { DriverPinControl } from './DriverPinControl';
 import { BookingWhatsApp } from './BookingWhatsApp';
 import { ReceiptButton } from './ReceiptButton';
 import { MapPanel } from './MapPanel';
+import { FleetSettings } from './FleetSettings';
 import type { ActiveTab } from './AdminShell';
+import { TripTypeIcon } from '@/components/TripTypeIcon';
 import { OfflineIndicator } from '@/components/ui/OfflineIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -29,6 +32,7 @@ type Tab = 'today' | 'fleet' | 'collections';
 
 interface AdminDashboardProps {
   activeSection?: ActiveTab;
+  onOpenPricing?: () => void;
 }
 
 const statusColors: Record<string, string> = {
@@ -201,10 +205,11 @@ function DriverCollectionPanel({ driverId, period }: { driverId: number; period:
     </div>
   );
 }
-export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardProps) {
+export function AdminDashboard({ activeSection = 'dashboard', onOpenPricing }: AdminDashboardProps) {
   const [tab, setTab] = useState<Tab>('today');
   const [dispatchBooking, setDispatchBooking] = useState<SupabaseBooking | null>(null);
   const [showNewBooking, setShowNewBooking] = useState(false);
+  const [showAddDriver, setShowAddDriver] = useState(false);
   const [paymentBooking, setPaymentBooking] = useState<SupabaseBooking | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'card'>('cash');
   const [paymentAmount, setPaymentAmount] = useState<string>('');
@@ -399,6 +404,10 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
     setPaymentLoading(false);
   };
 
+  if (activeSection === 'settings') {
+    return <FleetSettings onOpenPricing={onOpenPricing} />;
+  }
+
   return (
     <div>
       {/* Page header */}
@@ -435,7 +444,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
 
       {/* Tabs */}
       <div className="px-8 mt-8">
-        {activeSection !== 'settings' && (
+        {(
           <div className="flex gap-2 mb-6">
             {[
               { id: 'today' as Tab, label: "Today's Board", icon: Calendar },
@@ -462,16 +471,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
           </div>
         )}
 
-        {!isLoading && activeSection === 'settings' && (
-          <Card className="p-6 shadow-card rounded-xl">
-            <h3 className="text-lg font-bold text-foreground">Settings</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Fleet settings are not wired into this prototype yet. The sidebar and top navigation now switch cleanly between the existing admin sections.
-            </p>
-          </Card>
-        )}
-
-        {!isLoading && activeSection !== 'settings' && tab === 'today' && (
+        {!isLoading && tab === 'today' && (
           <div className="space-y-6 pb-8">
             <PaymentSummary bookings={bookings} />
 <PendingHandovers />
@@ -493,7 +493,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                     <Card className="p-4 shadow-card rounded-xl">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <span className="text-lg">{tripTypeIcons[booking.trip_type ?? 'city']}</span>
+                          <TripTypeIcon type={booking.trip_type ?? 'city'} className="h-5 w-5 text-muted-foreground" />
                           <div>
                             <p className="text-sm font-semibold">{booking.customer_name ?? 'Unknown'}</p>
                             <p className="text-xs text-muted-foreground">{booking.pickup ?? '?'} → {booking.drop ?? '?'}</p>
@@ -554,7 +554,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="text-lg">{tripTypeIcons[booking.trip_type ?? 'city']}</span>
+                        <TripTypeIcon type={booking.trip_type ?? 'city'} className="h-5 w-5 text-muted-foreground" />
                         <div>
                           <p className="text-sm font-semibold">{booking.pickup ?? '?'} → {booking.drop ?? '?'}</p>
                           <p className="text-xs text-muted-foreground">{booking.customer_name} · {booking.scheduled_at?.split('T')[1]?.slice(0,5)}</p>
@@ -600,7 +600,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="text-lg">{tripTypeIcons[booking.trip_type ?? 'city']}</span>
+                        <TripTypeIcon type={booking.trip_type ?? 'city'} className="h-5 w-5 text-muted-foreground" />
                         <div>
                           <p className="text-sm font-semibold">{booking.pickup ?? '?'} → {booking.drop ?? '?'}</p>
                           <p className="text-xs text-muted-foreground">{booking.customer_name} · {booking.scheduled_at?.split('T')[0]}</p>
@@ -636,7 +636,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
           </div>
         )}
 
-       {!isLoading && activeSection !== 'settings' && tab === 'fleet' && (
+       {!isLoading && tab === 'fleet' && (
           <div className="space-y-3 pb-8">
             {/* Period toggle */}
             <div className="flex gap-2 mb-2">
@@ -830,7 +830,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
           </div>
         )}
 
-        {!isLoading && activeSection !== 'settings' && tab === 'collections' && (
+        {!isLoading && tab === 'collections' && (
           <div className="pb-8">
             <CollectionsHistory />
           </div>
@@ -838,7 +838,8 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
       </div>
 
       <button
-        onClick={() => setShowNewBooking(true)}
+        onClick={() => (activeSection === 'drivers' ? setShowAddDriver(true) : setShowNewBooking(true))}
+        aria-label={activeSection === 'drivers' ? 'Add driver' : 'New booking'}
         className="fixed bottom-24 right-6 z-40 h-14 w-14 rounded-full kinetic-gradient text-white shadow-elevated flex items-center justify-center hover:opacity-90 transition-opacity"
       >
         <Plus className="h-6 w-6" />
@@ -849,6 +850,8 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
         onClose={() => setShowNewBooking(false)}
         drivers={drivers}
       />
+
+      <AddDriverSheet open={showAddDriver} onClose={() => setShowAddDriver(false)} />
 
       <DispatchEngine
         booking={dispatchBooking}
@@ -871,7 +874,7 @@ export function AdminDashboard({ activeSection = 'dashboard' }: AdminDashboardPr
         <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
           <SheetHeader className="mb-4">
             <SheetTitle>
-              {tripTypeIcons[detailBooking?.trip_type ?? 'city']} {detailBooking?.pickup} → {detailBooking?.drop}
+              <TripTypeIcon type={detailBooking?.trip_type ?? 'city'} className="mr-1 inline h-4 w-4 align-text-bottom" />{detailBooking?.pickup} → {detailBooking?.drop}
             </SheetTitle>
           </SheetHeader>
           {detailBooking && (() => {

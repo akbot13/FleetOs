@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Car, Navigation, Phone, Clock, Camera, FileText, CheckCircle, X, Power, AlertTriangle, Wallet, Fuel, WifiOff, PhoneCall, Calendar, AlarmClock, Shield, Zap } from 'lucide-react';
+import { Car, Navigation, Phone, Clock, Camera, FileText, CheckCircle, X, Power, AlertTriangle, Wallet, Fuel, WifiOff, PhoneCall, Calendar, AlarmClock, Shield, Banknote, Smartphone } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -12,12 +12,18 @@ import { useDriverCash } from './useDriverCash';
 import { queueFeedbackMessage, queueInvoiceMessage } from '@/lib/customerAutomation';
 import { toast } from 'sonner';
 import type { DriverScreen, TripPhase, ScheduledTrip, MockTrip } from './types';
-import { TRIP_TYPE_ICONS, documents, formatTime, formatDate, getHoursUntil, formatCurrency, metersBetween, bookingToActiveTrip, bookingToTrip, trackedBookingStatuses, sortTripsBySchedule } from './helpers';
+import { tripTypeName, documents, formatTime, formatDate, getHoursUntil, formatCurrency, metersBetween, bookingToActiveTrip, bookingToTrip, trackedBookingStatuses, sortTripsBySchedule } from './helpers';
 import { TripAlarm } from './TripAlarm';
 import { ContactActions } from './ContactActions';
 import { ExpenseTracker } from './ExpenseTracker';
 import { ScheduledTripCard } from './ScheduledTripCard';
 import { DriverTripMap } from './DriverTripMap';
+import { FleetNote } from './FleetNote';
+import { FleetMark } from '@/components/FleetMark';
+import { TripTypeIcon } from '@/components/TripTypeIcon';
+import { useOrgDriverInfo } from '@/hooks/useOrgDriverInfo';
+import { telHref } from '@/lib/contact';
+import { acceptedPayments, firstName, greetingForHour, pickPayment, PAYMENT_LABELS } from '@/lib/fleetDisplay';
 
 interface DriverAppProps { driver?: (Pick<SupabaseDriver,'id'|'name'|'status'> & Partial<SupabaseDriver>) | null }
 
@@ -46,6 +52,7 @@ export function DriverApp({ driver }: DriverAppProps) {
   const { data: todayHandover, refetch: refetchTodayHandover } = useTodayHandover(myProfile?.id);
   const queryClient = useQueryClient();
   const { org } = useOrg();
+  const { data: driverInfo } = useOrgDriverInfo();
   const { expenses, collections, addExpense, addCollection, deleteExpense, handleHandOver, handoverLoading, pendingSyncCount } =
     useDriverCash(myProfile?.id, org?.id, refetchTodayHandover);
 
@@ -67,6 +74,11 @@ export function DriverApp({ driver }: DriverAppProps) {
     refetchInterval: 15000,
     refetchOnWindowFocus: true,
   });
+
+  // Only the methods the fleet accepts are offered when logging a payment.
+  const acceptedMethods = acceptedPayments(org?.payment_methods);
+  const officeCall = telHref(driverInfo?.office_phone);
+  const brandName = org?.brand_name?.trim() || null;
 
   const queryTrips = realTrips.map(bookingToTrip);
   const displayTrips: ScheduledTrip[] = [
@@ -345,7 +357,7 @@ export function DriverApp({ driver }: DriverAppProps) {
     }
     setCollectBookingId(bookingId);
     setCollectAmount(String(completedTrip?.fare ?? ''));
-    setCollectMethod(completedTrip?.payment_method === 'upi' ? 'upi' : 'cash');
+    setCollectMethod(pickPayment(acceptedMethods, completedTrip?.payment_method));
     return true;
   };
 
@@ -369,7 +381,7 @@ export function DriverApp({ driver }: DriverAppProps) {
       reportSaveError(`save the ${label} odometer photo`, error.message);
       return;
     }
-    toast(`${kind === 'start' ? 'Start' : 'End'} odometer photo saved ✓`);
+    toast(`${kind === 'start' ? 'Start' : 'End'} odometer photo saved`);
   };
 
   const handleLogPayment = async () => {
@@ -415,12 +427,8 @@ export function DriverApp({ driver }: DriverAppProps) {
   const unconfirmedTrips = sortedTrips.filter(t => t.status === 'pending_confirm').length;
 
 
-  const greeting = () => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
-  };
+  const driverFirstName = firstName(myProfile?.name);
+  const greeting = `${greetingForHour(new Date().getHours())}${driverFirstName ? `, ${driverFirstName}` : ''}`;
 
   return (
     <div className="relative min-h-screen bg-gray-950 text-white">
@@ -449,13 +457,13 @@ export function DriverApp({ driver }: DriverAppProps) {
         if (!trip) return null;
         return (
           <div key={tripId} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="bg-card rounded-2xl p-8 mx-6 max-w-sm w-full text-center">
+            <div className="bg-card rounded-xl p-6 mx-4 max-w-sm w-full text-center">
               <AlarmClock className="h-16 w-16 text-destructive mx-auto mb-4 animate-bounce" />
-              <h2 className="text-xl font-bold text-destructive mb-1">TRIP IN 1 HOUR</h2>
+              <h2 className="text-xl font-semibold text-destructive mb-1">Trip in 1 hour</h2>
               <p className="font-semibold mb-1">{trip.customerName}</p>
               <p className="text-sm text-muted-foreground mb-1">{trip.pickup} → {trip.drop}</p>
               <p className="text-lg font-bold mb-6">₹{trip.fare.toLocaleString('en-IN')}</p>
-              <Button className="w-full bg-secondary text-secondary-foreground" onClick={() => { localStorage.setItem('dismissed_1hr_' + tripId, 'true'); setAlarmTrips(prev => prev.filter(id => id !== tripId)); }}>
+              <Button className="w-full h-12 rounded-xl" onClick={() => { localStorage.setItem('dismissed_1hr_' + tripId, 'true'); setAlarmTrips(prev => prev.filter(id => id !== tripId)); }}>
                 Got it, I'm ready
               </Button>
             </div>
@@ -466,35 +474,43 @@ export function DriverApp({ driver }: DriverAppProps) {
       {/* Cash collection modal */}
       {collectBookingId !== null && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="bg-card rounded-2xl p-6 mx-6 max-w-sm w-full">
-            <h2 className="text-lg font-bold mb-1">Log payment collected</h2>
+          <div className="bg-card rounded-xl p-6 mx-4 max-w-sm w-full">
+            <h2 className="text-lg font-semibold mb-1">Log payment collected</h2>
             <p className="text-sm text-muted-foreground mb-4">Fare was ₹{realTrips.find(t => t.id === collectBookingId)?.fare?.toLocaleString('en-IN') ?? collectAmount}</p>
-            <input type="number" className="w-full border border-border rounded-xl px-4 py-3 text-base mb-4 bg-background focus:outline-none focus:ring-2 focus:ring-ring" value={collectAmount} onChange={e => setCollectAmount(e.target.value)} placeholder="Amount collected" />
-            <div className="flex gap-2 mb-5">
-              {(['cash', 'upi'] as const).map(m => (
-                <button key={m} onClick={() => setCollectMethod(m)} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${collectMethod === m ? 'bg-secondary text-secondary-foreground border-secondary' : 'bg-card text-muted-foreground border-border hover:border-muted-foreground/40'}`}>
-                  {m === 'cash' ? '💵 Cash' : '📱 UPI'}
-                </button>
-              ))}
-            </div>
+            <input type="number" className="w-full h-12 border border-border rounded-xl px-4 text-base mb-4 bg-background focus:outline-none focus:ring-2 focus:ring-ring" value={collectAmount} onChange={e => setCollectAmount(e.target.value)} placeholder="Amount collected" />
+            {acceptedMethods.length > 1 ? (
+              <div className="flex gap-2 mb-5">
+                {acceptedMethods.map(m => (
+                  <button key={m} onClick={() => setCollectMethod(m)} aria-pressed={collectMethod === m} className={`flex-1 min-h-[44px] flex items-center justify-center gap-2 rounded-xl text-sm font-semibold border transition-all ${collectMethod === m ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-muted-foreground border-border hover:border-muted-foreground/40'}`}>
+                    {m === 'upi' ? <Smartphone className="h-4 w-4" /> : <Banknote className="h-4 w-4" />}
+                    {PAYMENT_LABELS[m]}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground mb-5">
+                {collectMethod === 'upi' ? <Smartphone className="h-4 w-4" /> : <Banknote className="h-4 w-4" />}
+                {PAYMENT_LABELS[collectMethod]} only
+              </p>
+            )}
             {collectMethod === 'upi' && (
               <div className="mb-4 space-y-2">
                 {(org?.upi_id || org?.upi_qr_url) ? (
                   <button
                     onClick={() => setShowUpiDetails(true)}
-                    className="w-full py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm font-semibold"
+                    className="w-full min-h-[44px] rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 text-sm font-semibold"
                   >
                     Show UPI QR / ID
                   </button>
                 ) : (
-                  <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
-                    Configure company UPI ID or QR in the organisation settings to enable one-tap UPI collection help.
+                  <p className="text-xs text-amber-800 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">
+                    No UPI details are set up yet. Ask your office.
                   </p>
                 )}
               </div>
             )}
-            <Button className="w-full" disabled={collectLoading || !collectAmount} onClick={handleLogPayment}>
-              {collectLoading ? 'Saving…' : 'Log Payment'}
+            <Button className="w-full h-12 rounded-xl" disabled={collectLoading || !collectAmount} onClick={handleLogPayment}>
+              {collectLoading ? 'Saving' : 'Log payment'}
             </Button>
           </div>
         </div>
@@ -502,15 +518,15 @@ export function DriverApp({ driver }: DriverAppProps) {
 
       {showUpiDetails && collectMethod === 'upi' && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 55, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="bg-card rounded-2xl p-6 mx-6 max-w-sm w-full">
+          <div className="bg-card rounded-xl p-6 mx-4 max-w-sm w-full">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">Company UPI</h2>
-              <button onClick={() => setShowUpiDetails(false)} className="text-muted-foreground hover:text-foreground">
+              <h2 className="text-lg font-semibold">{brandName ? `${brandName} UPI` : 'UPI'}</h2>
+              <button onClick={() => setShowUpiDetails(false)} aria-label="Close" className="-mr-2 h-11 w-11 flex items-center justify-center text-muted-foreground hover:text-foreground">
                 <X className="h-5 w-5" />
               </button>
             </div>
             {org?.upi_qr_url && (
-              <img src={org.upi_qr_url} alt="Company UPI QR" className="mx-auto h-56 w-56 rounded-2xl border border-border bg-white object-contain p-3" />
+              <img src={org.upi_qr_url} alt="UPI QR" className="mx-auto h-56 w-56 rounded-xl border border-border bg-white object-contain p-3" />
             )}
             {org?.upi_id && (
               <div className="mt-4 rounded-xl border border-border bg-background px-4 py-3">
@@ -519,7 +535,7 @@ export function DriverApp({ driver }: DriverAppProps) {
                   <span className="text-sm font-semibold">{org.upi_id}</span>
                   <button
                     onClick={() => navigator.clipboard?.writeText(org.upi_id ?? '')}
-                    className="text-xs font-semibold text-secondary"
+                    className="min-h-[44px] px-2 text-xs font-semibold text-primary"
                   >
                     Copy
                   </button>
@@ -527,7 +543,7 @@ export function DriverApp({ driver }: DriverAppProps) {
               </div>
             )}
             <p className="mt-4 text-xs text-muted-foreground">
-              Show this screen to the customer so they can scan the QR or enter the UPI ID directly.
+              Show this to the customer to scan or enter the UPI ID.
             </p>
           </div>
         </div>
@@ -540,16 +556,16 @@ export function DriverApp({ driver }: DriverAppProps) {
           onClick={() => setDetailTrip(null)}
         >
           <div
-            className="bg-gray-900 rounded-t-3xl w-full max-w-lg p-6 pb-10 space-y-4"
+            className="bg-gray-900 rounded-t-xl w-full max-w-lg p-6 pb-10 space-y-4"
             style={{ maxHeight: '85vh', overflowY: 'auto' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-xs text-gray-400 uppercase tracking-widest mb-0.5">{TRIP_TYPE_ICONS[detailTrip.tripType]} {detailTrip.tripType}</div>
+                <div className="flex items-center gap-2 text-xs text-gray-400 uppercase tracking-wider mb-1"><TripTypeIcon type={detailTrip.tripType} />{tripTypeName(detailTrip.tripType)}</div>
                 <div className="text-lg font-black text-white">{detailTrip.customerName}</div>
               </div>
-              <button onClick={() => setDetailTrip(null)} className="h-9 w-9 rounded-full bg-gray-700 flex items-center justify-center text-gray-300 hover:bg-gray-600 active:scale-95 transition-all">
+              <button onClick={() => setDetailTrip(null)} aria-label="Close" className="h-11 w-11 rounded-full bg-gray-700 flex items-center justify-center text-gray-300 hover:bg-gray-600 active:scale-95 transition-all">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -584,8 +600,8 @@ export function DriverApp({ driver }: DriverAppProps) {
             {detailTrip.customerPhone && (
               <div className="flex gap-3">
                 <a
-                  href={`tel:${detailTrip.customerPhone}`}
-                  className="flex-1 py-3 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 text-sm font-bold flex items-center justify-center gap-2 active:scale-95 transition-all"
+                  href={telHref(detailTrip.customerPhone) ?? undefined}
+                  className="flex-1 min-h-[48px] rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 text-sm font-semibold flex items-center justify-center gap-2 active:scale-95 transition-all"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <PhoneCall className="h-4 w-4" /> Call
@@ -594,7 +610,7 @@ export function DriverApp({ driver }: DriverAppProps) {
                   href={`https://wa.me/${detailTrip.customerPhone.replace(/\D/g, '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 py-3 rounded-xl bg-green-500/15 border border-green-500/30 text-green-400 text-sm font-bold flex items-center justify-center gap-2 active:scale-95 transition-all"
+                  className="flex-1 min-h-[48px] rounded-xl bg-green-500/15 border border-green-500/30 text-green-400 text-sm font-semibold flex items-center justify-center gap-2 active:scale-95 transition-all"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Phone className="h-4 w-4" /> WhatsApp
@@ -632,7 +648,7 @@ export function DriverApp({ driver }: DriverAppProps) {
                 className="w-full py-3.5 rounded-xl bg-green-500 hover:bg-green-400 active:scale-95 transition-all text-white font-bold text-sm flex items-center justify-center gap-2"
               >
                 <Navigation className="h-4 w-4" />
-                Start Trip
+                Start trip
               </button>
             )}
             <button onClick={() => setDetailTrip(null)} className="w-full py-3 rounded-xl bg-gray-700 text-gray-300 text-sm font-bold active:scale-95 transition-all">
@@ -651,29 +667,22 @@ export function DriverApp({ driver }: DriverAppProps) {
       )}
 
       {/* HEADER */}
-      <div className="kinetic-gradient px-5 pt-10 pb-5">
+      <div className="bg-primary px-4 pt-8 pb-4">
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <Zap className="h-3.5 w-3.5 text-white/70" />
-                <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest">FleetOs</span>
-              </div>
-              <h1 className="text-xl font-black text-white font-display">{myProfile?.name ?? 'Driver'}</h1>
-              <p className="text-xs text-white/60">{myProfile?.plate_number ?? 'Ready'} - {myProfile?.vehicle_model ?? 'Vehicle pending'}</p>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <FleetMark name={brandName} logoUrl={org?.brand_logo_url} size="sm" />
+              {brandName && <p className="text-sm font-semibold text-primary-foreground truncate">{brandName}</p>}
             </div>
-            <div className="flex items-center gap-3">
-              {!isOnline && pendingSyncCount > 0 && (
-                <div className="flex items-center gap-1 bg-orange-500/15 border border-orange-500/30 px-2.5 py-1.5 rounded-full">
-                  <WifiOff className="h-3 w-3 text-orange-400" />
-                  <span className="text-[10px] font-bold text-orange-300">{pendingSyncCount}</span>
-                </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {officeCall && (
+                <a
+                  href={officeCall}
+                  className="flex min-h-[44px] items-center gap-2 rounded-full border border-primary-foreground/30 px-3 text-xs font-semibold text-primary-foreground active:scale-95 transition-all"
+                >
+                  <Phone className="h-4 w-4" aria-hidden /> Call office
+                </a>
               )}
-              <div className="flex items-center gap-2 bg-gray-800 px-3 py-2 rounded-full border border-gray-700">
-                <div className={`h-2 w-2 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-                <span className="text-xs font-bold text-gray-200">{isOnline ? 'Online' : 'Offline'}</span>
-                <Switch checked={isOnline} onCheckedChange={setIsOnline} className="scale-75" />
-              </div>
               <button
                 onClick={async () => {
                   localStorage.removeItem('fleetos_driver');
@@ -682,17 +691,37 @@ export function DriverApp({ driver }: DriverAppProps) {
                   await supabase.auth.signOut();
                   window.location.reload();
                 }}
-                className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-full bg-slate-950/80 border border-white/20 text-white text-xs font-bold active:scale-95 transition-all"
+                aria-label="Log out"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-primary-foreground/30 text-primary-foreground active:scale-95 transition-all"
               >
-                <Power className="h-3.5 w-3.5" /> Log Out
+                <Power className="h-4 w-4" />
               </button>
             </div>
           </div>
-            <div className="grid grid-cols-3 gap-2.5">
-            <div className="bg-white/15 rounded-xl p-3 text-center"><p className="text-lg font-black text-white font-display">{formatCurrency(todayRevenue)}</p><p className="text-[10px] text-white/60 uppercase tracking-wider">Collected</p></div>
-            <div className="bg-white/15 rounded-xl p-3 text-center"><p className="text-lg font-black text-white font-display">{completedTodayCount}</p><p className="text-[10px] text-white/60 uppercase tracking-wider">Completed</p></div>
-            <div className="bg-white/15 rounded-xl p-3 text-center"><p className="text-sm font-black text-white font-display">{gpsStatusLabel}</p><p className="text-[10px] text-white/60 uppercase tracking-wider">GPS</p></div>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold text-primary-foreground truncate">{greeting}</h1>
+              <p className="text-xs text-primary-foreground/80 truncate">{myProfile?.plate_number ?? 'Ready'} - {myProfile?.vehicle_model ?? 'Vehicle pending'}</p>
             </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {!isOnline && pendingSyncCount > 0 && (
+                <div className="flex items-center gap-1 bg-orange-500/15 border border-orange-500/30 px-2.5 py-1.5 rounded-full">
+                  <WifiOff className="h-3 w-3 text-orange-300" />
+                  <span className="text-xs font-semibold text-orange-200">{pendingSyncCount}</span>
+                </div>
+              )}
+              <div className="flex min-h-[44px] items-center gap-2 bg-gray-800 px-3 rounded-full border border-gray-700">
+                <div className={`h-2 w-2 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
+                <span className="text-xs font-semibold text-gray-200">{isOnline ? 'Online' : 'Offline'}</span>
+                <Switch checked={isOnline} onCheckedChange={setIsOnline} aria-label="Online" className="scale-75" />
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-primary-foreground/15 rounded-xl p-3 text-center"><p className="text-lg font-semibold text-primary-foreground">{formatCurrency(todayRevenue)}</p><p className="text-xs text-primary-foreground/80">Collected</p></div>
+            <div className="bg-primary-foreground/15 rounded-xl p-3 text-center"><p className="text-lg font-semibold text-primary-foreground">{completedTodayCount}</p><p className="text-xs text-primary-foreground/80">Completed</p></div>
+            <div className="bg-primary-foreground/15 rounded-xl p-3 text-center"><p className="text-sm font-semibold text-primary-foreground">{gpsStatusLabel}</p><p className="text-xs text-primary-foreground/80">GPS</p></div>
+          </div>
         </div>
       </div>
 
@@ -701,12 +730,12 @@ export function DriverApp({ driver }: DriverAppProps) {
         <div className="flex gap-1.5 mb-5 overflow-x-auto pb-1 scrollbar-hide">
           {([
             { id: 'home' as DriverScreen, label: 'Home', icon: Car, badge: unconfirmedTrips },
-            { id: 'active-trip' as DriverScreen, label: 'Active Trip', icon: Navigation, badge: 0 },
+            { id: 'active-trip' as DriverScreen, label: 'Active trip', icon: Navigation, badge: 0 },
             { id: 'expenses' as DriverScreen, label: 'Expenses', icon: Fuel, badge: pendingSyncCount },
             { id: 'earnings' as DriverScreen, label: 'Earnings', icon: Wallet, badge: 0 },
             { id: 'documents' as DriverScreen, label: 'Docs', icon: FileText, badge: 0 },
           ]).map(t => (
-            <button key={t.id} onClick={() => setScreen(t.id)} className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 ${screen === t.id ? 'bg-white text-gray-900 shadow-lg' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}>
+            <button key={t.id} onClick={() => setScreen(t.id)} className={`relative flex items-center gap-2 px-3 min-h-[44px] rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${screen === t.id ? 'bg-white text-gray-900 shadow-lg' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}>
               <t.icon className="h-3.5 w-3.5" />
               {t.label}
               {t.badge > 0 && <span className="absolute -top-1 -right-1 h-4 w-4 bg-orange-500 text-white rounded-full text-[9px] font-black flex items-center justify-center">{t.badge}</span>}
@@ -723,9 +752,10 @@ export function DriverApp({ driver }: DriverAppProps) {
                 <div><p className="text-sm font-bold text-orange-300">You're offline</p><p className="text-xs text-orange-400/70">Trip confirmations & expenses save locally</p></div>
               </div>
             )}
+            {brandName && <FleetNote brandName={brandName} note={driverInfo?.welcome_note} rules={driverInfo?.rules} />}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <div className="text-sm font-bold text-white flex items-center gap-2"><Calendar className="h-4 w-4 text-blue-400" /> Upcoming Trips</div>
+                <div className="text-sm font-bold text-white flex items-center gap-2"><Calendar className="h-4 w-4 text-blue-400" /> Upcoming trips</div>
                 {unconfirmedTrips > 0 && <span className="text-xs bg-orange-500/20 text-orange-300 border border-orange-500/30 px-2 py-0.5 rounded-full font-bold">{unconfirmedTrips} need confirmation</span>}
               </div>
               {sortedTrips.length === 0 ? (
@@ -780,15 +810,15 @@ export function DriverApp({ driver }: DriverAppProps) {
                 )}
                 <ContactActions customerName={activeTrip.customerName} customerPhone={activeTrip.customerPhone} />
               </div>
-              {tripPhase === 'navigating' && <button onClick={() => setTripPhase('arrived')} className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-400 active:scale-95 transition-all text-white font-bold">I've Arrived at Pickup</button>}
+              {tripPhase === 'navigating' && <button onClick={() => setTripPhase('arrived')} className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-400 active:scale-95 transition-all text-white font-bold">I've arrived at pickup</button>}
 {tripPhase === 'arrived' && (
                 <div className="space-y-3">
                   {myProfile?.is_temporary && (
                     <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl">
-                      <p className="text-xs font-bold text-orange-300 mb-2">📸 Odometer photo required</p>
-                      <label className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-xs font-bold cursor-pointer active:scale-95 transition-all">
+                      <p className="flex items-center gap-2 text-xs font-semibold text-orange-300 mb-2"><Camera className="h-4 w-4" aria-hidden /> Odometer photo required</p>
+                      <label className="w-full flex items-center justify-center gap-2 min-h-[44px] rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-xs font-semibold cursor-pointer active:scale-95 transition-all">
                         <Camera className="h-4 w-4" />
-                        Take Odometer Photo (Start)
+                        Take start odometer photo
                         <input
                           type="file"
                           accept="image/*"
@@ -819,10 +849,10 @@ export function DriverApp({ driver }: DriverAppProps) {
                 <div className="space-y-3">
                   {myProfile?.is_temporary && (
                     <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl">
-                      <p className="text-xs font-bold text-orange-300 mb-2">📸 Odometer photo required before ending</p>
-                      <label className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-xs font-bold cursor-pointer active:scale-95 transition-all">
+                      <p className="flex items-center gap-2 text-xs font-semibold text-orange-300 mb-2"><Camera className="h-4 w-4" aria-hidden /> Odometer photo required before ending</p>
+                      <label className="w-full flex items-center justify-center gap-2 min-h-[44px] rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-xs font-semibold cursor-pointer active:scale-95 transition-all">
                         <Camera className="h-4 w-4" />
-                        Take Odometer Photo (End)
+                        Take end odometer photo
                         <input
                           type="file"
                           accept="image/*"
@@ -851,11 +881,11 @@ export function DriverApp({ driver }: DriverAppProps) {
               )}              {tripPhase === 'completed' && (
                 <div className="text-center py-4">
                   <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-2" />
-                  <p className="font-black text-lg text-white">Trip Completed!</p>
+                  <p className="font-black text-lg text-white">Trip completed</p>
                   <p className="text-sm text-gray-400 mb-3">Collected {formatCurrency(activeTrip?.fare ?? 0)}. Log any cash or trip expenses next.</p>
                   <div className="flex gap-2">
-                    <button onClick={() => { setTripPhase('navigating'); setScreen('home'); }} className="flex-1 py-2.5 rounded-xl bg-gray-700 text-gray-200 text-sm font-bold active:scale-95 transition-all">Back to Home</button>
-                    <button onClick={() => { setTripPhase('navigating'); setScreen('expenses'); }} className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-bold active:scale-95 transition-all">Log Expenses</button>
+                    <button onClick={() => { setTripPhase('navigating'); setScreen('home'); }} className="flex-1 min-h-[44px] rounded-xl bg-gray-700 text-gray-200 text-sm font-semibold active:scale-95 transition-all">Back to home</button>
+                    <button onClick={() => { setTripPhase('navigating'); setScreen('expenses'); }} className="flex-1 min-h-[44px] rounded-xl bg-orange-500 text-gray-950 text-sm font-semibold active:scale-95 transition-all">Log expenses</button>
                   </div>
                 </div>
               )}

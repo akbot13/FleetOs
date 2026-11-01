@@ -28,7 +28,8 @@ const denied = (res) => res.body?.code === '42501';
 // What each migration adds that the app depends on.
 const columns = {
   bookings: ['notes', 'driver_confirmed_at', 'tracking_token', 'vehicle_class'],
-  organizations: ['upi_id', 'upi_qr_url', 'google_review_url'],
+  organizations: ['upi_id', 'upi_qr_url', 'google_review_url', 'tagline', 'welcome_message', 'service_area', 'service_hours',
+    'support_phone', 'whatsapp_phone', 'cancellation_note', 'thank_you_message', 'highlights', 'payment_methods', 'cover_image_url'],
   drivers: ['auth_user_id', 'odometer_start_photo', 'odometer_end_photo', 'location_updated_at', 'vehicle_class'],
   org_pricing: ['city_base_fare', 'outstation_per_day'],
   driver_cash_entries: ['kind', 'method', 'label', 'booking_id'],
@@ -64,6 +65,11 @@ for (const table of ['drivers', 'bookings', 'cash_handovers_v2', 'driver_cash_en
   const ok = Array.isArray(res.body) && res.body.length === 0;
   check(`${table} returns no rows to the public`, ok, ok ? '' : JSON.stringify(res.body).slice(0, 80));
 }
+// Driver-only content: the public key gets a permission error or no rows, never data.
+const driverInfo = await get('org_driver_info?select=org_id&limit=1');
+check('org_driver_info returns no rows to the public',
+  denied(driverInfo) || (Array.isArray(driverInfo.body) && driverInfo.body.length === 0),
+  `HTTP ${driverInfo.status}`);
 const secret = await get('organizations?select=whatsapp_api_key&limit=1');
 check('organization secrets hidden', denied(secret), `HTTP ${secret.status}`);
 

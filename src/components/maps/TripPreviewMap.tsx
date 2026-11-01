@@ -81,7 +81,7 @@ function createDriverMarker(label: string): HTMLElement {
       font-size: 20px;
       border: 3px solid #facc15;
       box-shadow: 0 14px 28px rgba(15,23,42,0.32);
-    ">🚗</div>
+    "><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>
   `;
   marker.setAttribute('aria-label', label);
   return marker;
@@ -151,7 +151,7 @@ export function TripPreviewMap({
     ? { lat: firstResolved.lat!, lng: firstResolved.lng! }
     : JAIPUR_CENTER;
 
-  const { addMarker, containerRef, drawRoute, error, fitBounds, isLoaded, providerLabel, removeRoute } = useOlaMaps(defaultCenter, 12);
+  const { addMarker, containerRef, drawRoute, error, fitBounds, isLoaded, removeRoute } = useOlaMaps(defaultCenter, 12);
 
   // Wait for typing to pause before geocoding: each lookup can hit up to three providers, and
   // the free OpenStreetMap server blocks apps that send it a request per keystroke.
@@ -277,7 +277,7 @@ export function TripPreviewMap({
       if (cancelled) return;
 
       setRouteDistanceKm(distanceKm > 0 ? distanceKm : null);
-      setRouteProvider(providers.size > 0 ? `${Array.from(providers).join(' + ')} route` : 'Marker preview');
+      setRouteProvider(providers.size > 0 ? 'Route ready' : 'Route preview unavailable');
     };
 
     void drawSegments();
@@ -336,23 +336,22 @@ export function TripPreviewMap({
         <div className="absolute left-4 top-4 z-10 max-w-[85%] rounded-2xl border border-white/70 bg-white/92 px-4 py-3 shadow-lg backdrop-blur-md">
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{title}</p>
           <p className="mt-1 text-sm font-semibold text-slate-950">{subtitle}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-600">
-            <span className="rounded-full bg-slate-100 px-2.5 py-1">{providerLabel}</span>
-            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">{routeProvider}</span>
-          </div>
+          {!routeDistanceKm && <p className="mt-1 text-xs text-slate-600">{routeProvider}</p>}
         </div>
 
         <div className="absolute bottom-4 left-4 z-10 flex flex-wrap items-center gap-2">
-          <div className="rounded-2xl bg-slate-950/88 px-4 py-2.5 text-white shadow-lg backdrop-blur-md">
-            <div className="flex items-center gap-2 text-xs font-bold">
-              <Route className="h-3.5 w-3.5 text-blue-300" />
-              {routeDistanceKm ? `${routeDistanceKm.toFixed(1)} km highlighted` : 'Pins ready'}
+          {routeDistanceKm && (
+            <div className="rounded-2xl bg-slate-950/88 px-4 py-2.5 text-white shadow-lg backdrop-blur-md">
+              <div className="flex items-center gap-2 text-xs font-bold">
+                <Route className="h-3.5 w-3.5 text-blue-300" />
+                {`${routeDistanceKm.toFixed(1)} km`}
+              </div>
             </div>
-          </div>
+          )}
           <div className="rounded-2xl border border-white/70 bg-white/92 px-4 py-2.5 text-slate-700 shadow-lg backdrop-blur-md">
             <div className="flex items-center gap-2 text-xs font-bold">
               <Navigation className="h-3.5 w-3.5 text-emerald-600" />
-              {stopCount > 0 ? `${stopCount} stop${stopCount > 1 ? 's' : ''}` : 'Direct ride'}
+              {stopCount > 0 ? `${stopCount} stop${stopCount > 1 ? 's' : ''}` : 'Direct route'}
             </div>
           </div>
         </div>

@@ -26,7 +26,7 @@ export function TopHeader({ activeTab = 'dashboard', onNewBooking, onTabChange }
     : 'AD';
 
   return (
-    <header className="fixed top-0 right-0 left-64 z-40 h-20 flex items-center justify-between px-8 glass-nav border-b border-slate-100">
+    <header className="fixed top-0 right-0 left-64 z-40 h-20 hidden md:flex items-center justify-between px-8 glass-nav border-b border-slate-100">
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

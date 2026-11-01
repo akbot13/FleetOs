@@ -13,7 +13,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:check": "node scripts/check-db.mjs",
-    "test:sql": "node scripts/check-rate-cards-sql.mjs"
+    "test:sql": "node scripts/check-rate-cards-sql.mjs",
+    "guard": "node scripts/merge-guard.mjs",
+    "prepare": "git config core.hooksPath .githooks || exit 0"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.14",

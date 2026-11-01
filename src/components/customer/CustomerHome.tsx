@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Car, MapPin, Clock, Star, ChevronRight, Loader2, Navigation } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Car, ChevronRight, Clock, MapPin, MessageCircle, Navigation, Phone } from 'lucide-react';
+import { FleetMark } from '@/components/FleetMark';
+import { TripTypeIcon } from '@/components/TripTypeIcon';
 import { BookingFlow } from './BookingFlow';
 import { TrackBooking } from './TrackBooking';
-import { useFixedRoutes, useLastBooking, tripTypeIcons } from '@/hooks/useSupabaseData';
+import { useFixedRoutes, useLastBooking } from '@/hooks/useSupabaseData';
 import { useDriversPublic } from '@/hooks/useDriversPublic';
 import { useOrg } from '@/hooks/useOrg';
 import { isClosedStatus, useBookingStatus } from '@/hooks/useBookingStatus';
+import { telHref, whatsappHref } from '@/lib/contact';
+import { resolveHighlights } from '@/lib/fleetHighlights';
+import { cn } from '@/lib/utils';
 import {
   clearSavedTrackingToken,
   clearTrackingTokenFromUrl,
@@ -17,14 +20,21 @@ import {
 
 type View = 'home' | 'booking' | 'track';
 
-export function CustomerHome() {
+interface CustomerHomeProps {
+  /** Quiet sign-in links at the foot of the page. Left out for signed-in staff, who have their own switcher. */
+  staffLinks?: { onDriver: () => void; onOwner: () => void };
+}
+
+const clean = (value: string | null | undefined) => value?.trim() || null;
+
+export function CustomerHome({ staffLinks }: CustomerHomeProps = {}) {
   // A tracking link (?track=<token>) opens the live map straight away.
   const [trackToken, setTrackToken] = useState<string | null>(() => readTrackingTokenFromUrl());
   const [view, setView] = useState<View>(() => (readTrackingTokenFromUrl() ? 'track' : 'home'));
   const [savedToken] = useState<string | null>(() => readSavedTrackingToken());
   const [repeatData, setRepeatData] = useState<typeof lastBooking>(null);
   const { org } = useOrg();
-  const { data: routes = [], isLoading: routesLoading } = useFixedRoutes();
+  const { data: routes = [] } = useFixedRoutes();
   const { data: drivers = [] } = useDriversPublic();
   const { data: lastBooking } = useLastBooking();
 
@@ -55,144 +65,211 @@ export function CustomerHome() {
 
   if (view === 'booking') return <BookingFlow onBack={() => { setRepeatData(null); setView('home'); }} initialData={repeatData} />;
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Hero */}
-      <div className="bg-primary px-6 pt-12 pb-10 rounded-b-[2rem]">
-        <div className="max-w-md mx-auto">
-          <div className="flex items-center gap-2 mb-1">
-            <Car className="h-5 w-5 text-secondary" />
-            <span className="text-sm font-semibold text-secondary tracking-wide uppercase">{org?.brand_name ?? 'FleetOs'}</span>
-          </div>
-          <h1 className="text-2xl font-bold text-primary-foreground mb-1">Where to?</h1>
-          <p className="text-primary-foreground/70 text-sm">Your most reliable rides</p>
+  const brandName = clean(org?.brand_name);
+  const tagline = clean(org?.tagline);
+  const welcome = clean(org?.welcome_message);
+  const serviceArea = clean(org?.service_area);
+  const serviceHours = clean(org?.service_hours);
+  const coverUrl = clean(org?.cover_image_url);
+  const highlights = resolveHighlights(org?.highlights);
+  const call = telHref(org?.support_phone);
+  const whatsapp = whatsappHref(org?.whatsapp_phone);
+  const listedRoutes = routes.filter(r => r.origin && r.destination);
 
-          <div className="mt-6 space-y-3">
-            {lastBooking && (
-              <button onClick={() => { setRepeatData(lastBooking); setView('booking'); }} className="w-full text-left bg-primary-foreground/10 rounded-xl p-4 flex items-center justify-between gap-3 mb-3 border border-primary-foreground/20">
-                <div>
-                  <p className="text-xs text-primary-foreground/60 mb-1">Book again</p>
-                  <p className="text-sm font-semibold text-primary-foreground">{tripTypeIcons[lastBooking.trip_type ?? 'city']} {lastBooking.pickup} → {lastBooking.drop}</p>
-                  <p className="text-xs text-primary-foreground/50">₹{lastBooking.fare?.toLocaleString('en-IN')} · {new Date(lastBooking.scheduled_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-primary-foreground/40 flex-shrink-0" />
-              </button>
-            )}
-            <Button
-              onClick={() => setView('booking')}
-              className="w-full h-14 bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-xl text-base font-semibold justify-between px-5"
-            >
-              <span className="flex items-center gap-3">
-                <Car className="h-5 w-5" />
-                Book a Ride
-              </span>
-              <ChevronRight className="h-5 w-5" />
-            </Button>
+  const heroText = coverUrl ? 'text-white' : 'text-primary-foreground';
+  const heroSoft = coverUrl ? 'text-white/85' : 'text-primary-foreground/80';
+  const hasBento = freeCount > 0 || !!serviceArea || !!serviceHours || highlights.length > 0 || !!welcome || !!(call || whatsapp);
+  const onlyCarsTile = freeCount > 0 && !serviceArea && !serviceHours && highlights.length === 0 && !welcome && !call && !whatsapp;
+  // Hours and area share a row when both are set; a lone one takes the full row unless cars sit beside it.
+  const hoursWide = !!serviceHours && freeCount === 0 && !serviceArea;
+  const areaWide = !!serviceArea && ((freeCount > 0) === !!serviceHours);
+
+  return (
+    <div className="customer-ui min-h-screen flex flex-col">
+      {/* Hero: cover photo with a dark scrim, or solid brand colour. No map here. */}
+      <header className={cn('relative overflow-hidden rounded-b-[32px] bg-primary px-6 pt-12 pb-16', heroText)}>
+        {coverUrl && (
+          <>
+            <img
+              src={coverUrl}
+              alt=""
+              width={1200}
+              height={800}
+              fetchPriority="high"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/25" aria-hidden />
+          </>
+        )}
+        <div className="relative mx-auto flex min-h-[280px] max-w-md flex-col">
+          <div className="flex items-center gap-3">
+            <FleetMark name={brandName} logoUrl={org?.brand_logo_url} size="md" />
+            {brandName && <span className="min-w-0 break-words text-base font-semibold">{brandName}</span>}
           </div>
+          <div className="mt-auto pt-24">
+            <h1 className="cu-serif text-5xl">Where to?</h1>
+            {tagline && <p className={cn('mt-3 text-base', heroSoft)}>{tagline}</p>}
+          </div>
+        </div>
+      </header>
+
+      <div className="relative z-10 -mt-7 px-6">
+        <div className="mx-auto max-w-md">
+          <button
+            type="button"
+            onClick={() => setView('booking')}
+            className="cu-pill flex h-14 w-full items-center justify-between bg-foreground px-6 text-base font-semibold text-background shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <span className="flex items-center gap-3"><Car className="h-5 w-5" aria-hidden />Book a ride</span>
+            <ChevronRight className="h-5 w-5" aria-hidden />
+          </button>
         </div>
       </div>
 
-      {savedToken && savedBooking && !savedBookingClosed && (
-        <div className="max-w-md mx-auto px-6 -mt-4 mb-8 relative z-10">
+      <div className="mx-auto w-full max-w-md flex-1 space-y-4 px-6 pb-8 pt-6">
+        {lastBooking?.pickup && lastBooking.drop && (
           <button
-            onClick={() => { setTrackToken(savedToken); setView('track'); }}
-            className="w-full text-left bg-card rounded-xl p-4 flex items-center justify-between gap-3 border shadow-elevated"
+            type="button"
+            onClick={() => { setRepeatData(lastBooking); setView('booking'); }}
+            className="cu-card flex min-h-[64px] w-full items-center justify-between gap-3 p-4 text-left"
           >
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-secondary/10 flex items-center justify-center">
-                <Navigation className="h-4 w-4 text-secondary" />
-              </div>
-              <div>
+            <div className="min-w-0">
+              <p className="mb-1 text-xs text-muted-foreground">Book again</p>
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <TripTypeIcon type={lastBooking.trip_type ?? 'city'} className="h-4 w-4 shrink-0" />
+                <span className="truncate">{lastBooking.pickup} to {lastBooking.drop}</span>
+              </p>
+              {lastBooking.fare != null && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  ₹{lastBooking.fare.toLocaleString('en-IN')} · {new Date(lastBooking.scheduled_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                </p>
+              )}
+            </div>
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+          </button>
+        )}
+
+        {savedToken && savedBooking && !savedBookingClosed && (
+          <button
+            type="button"
+            onClick={() => { setTrackToken(savedToken); setView('track'); }}
+            className="cu-card cu-tint flex min-h-[64px] w-full items-center justify-between gap-3 p-4 text-left"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <Navigation className="h-5 w-5" aria-hidden />
+              </span>
+              <div className="min-w-0">
                 <p className="text-sm font-semibold">Track your ride</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="truncate text-xs text-muted-foreground">
                   {savedBooking.driver ? `${savedBooking.driver.name ?? 'Your driver'} is assigned` : 'Finding your driver'} · #{savedBooking.id}
                 </p>
               </div>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
           </button>
-        </div>
-      )}
+        )}
 
-      {/* Quick Stats */}
-      <div className="max-w-md mx-auto px-6 -mt-4">
-        <Card className="p-4 shadow-elevated rounded-xl flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-success/10 flex items-center justify-center">
-              <div className="h-2.5 w-2.5 rounded-full bg-success animate-pulse-dot" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Cars available now</p>
-              <p className="text-lg font-bold">{freeCount}</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="flex items-center gap-1">
-              <Star className="h-3.5 w-3.5 fill-secondary text-secondary" />
-              <span className="text-sm font-semibold">4.7</span>
-            </div>
-            <p className="text-xs text-muted-foreground">Fleet rating</p>
-          </div>
-        </Card>
-      </div>
-
-      {/* Popular Routes from fixed_routes */}
-      <div className="max-w-md mx-auto px-6 mt-8">
-        <h2 className="text-lg font-bold mb-4">Popular Routes</h2>
-        {routesLoading ? (
-          <div className="flex justify-center py-6"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : routes.length === 0 ? (
-          <Card className="p-6 shadow-card rounded-xl text-center text-sm text-muted-foreground">No routes configured yet</Card>
-        ) : (
-          <div className="space-y-3">
-            {routes.map((route) => (
-              <Card
-                key={route.id}
-                className="p-4 shadow-card rounded-xl cursor-pointer hover:shadow-elevated transition-shadow"
-                onClick={() => setView('booking')}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex flex-col items-center">
-                      <div className="h-2 w-2 rounded-full bg-secondary" />
-                      <div className="w-px h-6 bg-border" />
-                      <MapPin className="h-3.5 w-3.5 text-destructive" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">{route.origin ?? '?'} → {route.destination ?? '?'}</p>
-                      {route.per_km_rate && <p className="text-xs text-muted-foreground">₹{route.per_km_rate}/km</p>}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold">₹{route.fixed_fare?.toLocaleString() ?? 'N/A'}</p>
-                    <p className="text-xs text-muted-foreground">est.</p>
-                  </div>
+        {hasBento && (
+          <div className="grid grid-cols-2 gap-3">
+            {freeCount > 0 && (
+              <div className={cn('cu-card cu-tint p-5', onlyCarsTile && 'col-span-2')}>
+                <span className="flex items-center gap-2 text-xs">
+                  <span className="h-2 w-2 rounded-full bg-success animate-pulse-dot" aria-hidden />
+                  {freeCount === 1 ? 'Car available now' : 'Cars available now'}
+                </span>
+                <p className="cu-serif mt-2 text-5xl">{freeCount}</p>
+              </div>
+            )}
+            {serviceHours && (
+              <div className={cn('cu-card p-5', hoursWide && 'col-span-2')}>
+                <Clock className="h-5 w-5 text-primary" aria-hidden />
+                <p className="mt-3 text-xs text-muted-foreground">Service hours</p>
+                <p className="break-words text-sm font-semibold">{serviceHours}</p>
+              </div>
+            )}
+            {serviceArea && (
+              <div className={cn('cu-card p-5', areaWide && 'col-span-2')}>
+                <MapPin className="h-5 w-5 text-primary" aria-hidden />
+                <p className="mt-3 text-xs text-muted-foreground">Service area</p>
+                <p className="break-words text-sm font-semibold">{serviceArea}</p>
+              </div>
+            )}
+            {highlights.length > 0 && (
+              <ul className="cu-card col-span-2 flex flex-wrap gap-2 p-4">
+                {highlights.map(h => (
+                  <li key={h.id} className="cu-pill cu-tint flex min-h-[36px] items-center gap-2 px-3 text-sm">
+                    <h.icon className="h-4 w-4 shrink-0" aria-hidden />
+                    {h.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {welcome && <p className="cu-card col-span-2 p-5 text-base leading-relaxed">{welcome}</p>}
+            {(call || whatsapp) && (
+              <div className="cu-card col-span-2 flex items-center justify-between gap-3 p-5">
+                <div>
+                  <p className="cu-serif text-2xl">Need help?</p>
+                  <p className="text-xs text-muted-foreground">Talk to us directly</p>
                 </div>
-              </Card>
-            ))}
+                <div className="flex gap-3">
+                  {call && (
+                    <a href={call} aria-label="Call us" className="cu-icon-btn bg-primary text-primary-foreground">
+                      <Phone className="h-5 w-5" aria-hidden />
+                    </a>
+                  )}
+                  {whatsapp && (
+                    <a href={whatsapp} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp us" className="cu-icon-btn cu-tint">
+                      <MessageCircle className="h-5 w-5" aria-hidden />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
+        )}
+
+        {listedRoutes.length > 0 && (
+          <section>
+            <h2 className="cu-serif mb-3 text-2xl">Popular routes</h2>
+            <ul className="cu-card divide-y overflow-hidden">
+              {listedRoutes.map(route => (
+                <li key={route.id}>
+                  <button
+                    type="button"
+                    onClick={() => setView('booking')}
+                    className="flex min-h-[56px] w-full items-center justify-between gap-3 px-5 py-3 text-left"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold">{route.origin} to {route.destination}</span>
+                      {route.per_km_rate ? <span className="block text-xs text-muted-foreground">₹{route.per_km_rate}/km</span> : null}
+                    </span>
+                    {route.fixed_fare != null && (
+                      <span className="shrink-0 text-sm font-semibold">₹{route.fixed_fare.toLocaleString('en-IN')}</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
 
-      {/* Recent */}
-      <div className="max-w-md mx-auto px-6 mt-8 pb-8">
-        <h2 className="text-lg font-bold mb-4">Recent Rides</h2>
-        <Card className="p-4 shadow-card rounded-xl">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold">🚗</div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold">C-Scheme → Malviya Nagar</p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3" />
-                <span>Yesterday, 6:30 PM</span>
-                <span>·</span>
-                <span>₹180</span>
-              </div>
-            </div>
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setView('booking')}>Rebook</Button>
+      <footer className="mx-auto w-full max-w-md px-6 pb-8 text-center">
+        {staffLinks && (
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <button onClick={staffLinks.onDriver} className="min-h-[44px] px-3 underline-offset-4 hover:underline">
+              Driver sign-in
+            </button>
+            <span aria-hidden>·</span>
+            <button data-testid="open-login" onClick={staffLinks.onOwner} className="min-h-[44px] px-3 underline-offset-4 hover:underline">
+              Owner sign-in
+            </button>
           </div>
-        </Card>
-      </div>
+        )}
+        <p className="text-xs text-muted-foreground">Powered by FleetOs</p>
+      </footer>
     </div>
   );
 }

@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle, Copy, Loader2, Share2, XCircle } from 'lucide-react';
+import { CheckCircle, Copy, Info, Loader2, Phone, Share2, Star, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { TripPreviewMap } from '@/components/maps/TripPreviewMap';
 import { useToast } from '@/hooks/use-toast';
 import { isClosedStatus, useBookingStatus } from '@/hooks/useBookingStatus';
+import { useOrg } from '@/hooks/useOrg';
+import { telHref } from '@/lib/contact';
+import { isHttpsUrl } from '@/lib/ownerSettings';
 import { clearSavedTrackingToken, trackingLink } from '@/lib/trackingStorage';
 import { shareRideMessage } from '@/lib/whatsappMessages';
 
@@ -27,6 +30,7 @@ function describeAge(updatedAt: string | null, now: number) {
 
 export function TrackBooking({ token, fallbackPickup, fallbackDrop, onDone }: TrackBookingProps) {
   const { toast } = useToast();
+  const { org } = useOrg();
   const { data: booking, isLoading } = useBookingStatus(token);
   // Re-render every 30 s so "updated 2 min ago" keeps counting between polls.
   const [now, setNow] = useState(() => Date.now());
@@ -82,7 +86,7 @@ export function TrackBooking({ token, fallbackPickup, fallbackDrop, onDone }: Tr
         <p className="text-sm text-muted-foreground mb-6">Check the tracking link and try again.</p>
         {onDone && (
           <Button onClick={onDone} className="w-full h-12 rounded-xl font-semibold max-w-xs mx-auto">
-            Back to Home
+            Back to home
           </Button>
         )}
       </div>
@@ -95,6 +99,11 @@ export function TrackBooking({ token, fallbackPickup, fallbackDrop, onDone }: Tr
   const cancelled = booking.status === 'cancelled';
   const age = describeAge(booking.driverLocationAt, now);
   const stale = age.minutes === null || age.minutes >= STALE_AFTER_MINUTES;
+  const completed = booking.status === 'completed';
+  const callFleet = telHref(org?.support_phone);
+  const cancellationNote = org?.cancellation_note?.trim() || null;
+  const thankYou = org?.thank_you_message?.trim() || null;
+  const reviewUrl = org?.google_review_url && isHttpsUrl(org.google_review_url) ? org.google_review_url : null;
 
   return (
     <div className="text-center py-8 animate-slide-up">
@@ -104,7 +113,7 @@ export function TrackBooking({ token, fallbackPickup, fallbackDrop, onDone }: Tr
           : <CheckCircle className="h-10 w-10 text-success" />}
       </div>
       <h2 className="text-xl font-bold mb-2">
-        {cancelled ? 'Booking cancelled' : booking.status === 'completed' ? 'Trip completed' : 'Booking Confirmed!'}
+        {cancelled ? 'Booking cancelled' : completed ? 'Trip completed' : 'Booking confirmed'}
       </h2>
       <p className="text-sm text-muted-foreground mb-1">Booking ID: #{booking.id}</p>
       <p className="text-sm text-muted-foreground mb-1">{pickup} → {drop || 'Tour'}</p>
@@ -173,25 +182,43 @@ export function TrackBooking({ token, fallbackPickup, fallbackDrop, onDone }: Tr
         )}
       </Card>
 
-      <div className="space-y-2 max-w-xs mx-auto">
+      {!closed && cancellationNote && (
+        <p className="flex items-start gap-2 text-left text-sm text-muted-foreground max-w-xs mx-auto mb-4">
+          <Info className="h-4 w-4 mt-0.5 shrink-0" aria-hidden />
+          <span>{cancellationNote}</span>
+        </p>
+      )}
+
+      {completed && thankYou && (
+        <p className="text-base text-foreground max-w-xs mx-auto mb-4">{thankYou}</p>
+      )}
+
+      <div className="space-y-3 max-w-xs mx-auto">
+        {completed && reviewUrl && (
+          <Button asChild variant="outline" className="w-full h-12 rounded-xl font-semibold">
+            <a href={reviewUrl} target="_blank" rel="noopener noreferrer"><Star className="h-4 w-4" /> Rate your ride</a>
+          </Button>
+        )}
+        {!closed && callFleet && (
+          <Button asChild variant="outline" className="w-full h-12 rounded-xl font-semibold">
+            <a href={callFleet}><Phone className="h-4 w-4" /> Call fleet</a>
+          </Button>
+        )}
         {!closed && (
-          <Button onClick={shareRide} className="w-full h-11 rounded-xl font-semibold bg-[#25D366] text-white hover:bg-[#1ebe5a]">
-            <Share2 className="h-4 w-4 mr-2" />
+          <Button onClick={shareRide} className="w-full h-12 rounded-xl font-semibold">
+            <Share2 className="h-4 w-4" />
             Share my ride
           </Button>
         )}
         {!closed && (
-          <Button variant="outline" onClick={copyLink} className="w-full h-11 rounded-xl font-semibold">
-            <Copy className="h-4 w-4 mr-2" />
+          <Button variant="outline" onClick={copyLink} className="w-full h-12 rounded-xl font-semibold">
+            <Copy className="h-4 w-4" />
             Copy tracking link
           </Button>
         )}
         {onDone && (
-          <Button
-            onClick={onDone}
-            className="w-full h-12 bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-xl font-semibold"
-          >
-            Back to Home
+          <Button onClick={onDone} className="w-full h-12 rounded-xl font-semibold">
+            Back to home
           </Button>
         )}
       </div>

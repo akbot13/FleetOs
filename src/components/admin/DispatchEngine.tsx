@@ -3,7 +3,8 @@ import { Clock, Navigation, Phone, CheckCircle, AlertTriangle, Zap, RotateCcw } 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { useDrivers, tripTypeIcons, getDriverInitials, type SupabaseDriver, type SupabaseBooking } from '@/hooks/useSupabaseData';
+import { TripTypeIcon } from '@/components/TripTypeIcon';
+import { useDrivers, getDriverInitials, type SupabaseDriver, type SupabaseBooking } from '@/hooks/useSupabaseData';
 import { useOrg } from '@/hooks/useOrg';
 import { supabase } from '@/integrations/supabase/client';
 import { queueAssignmentMessage } from '@/lib/customerAutomation';
@@ -134,7 +135,7 @@ export function DispatchEngine({ booking, open, onClose, onAssign }: DispatchEng
             Dispatch — Assign Driver
           </DialogTitle>
           <DialogDescription>
-            {tripTypeIcons[booking.trip_type ?? 'city']} {booking.pickup ?? '?'} → {booking.drop ?? '?'}
+            <TripTypeIcon type={booking.trip_type ?? 'city'} className="mr-1 inline h-4 w-4 align-text-bottom" />{booking.pickup ?? '?'} → {booking.drop ?? '?'}
           </DialogDescription>
         </DialogHeader>
 

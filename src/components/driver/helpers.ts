@@ -1,5 +1,6 @@
 import { Card } from '@/components/ui/card';
-import { SupabaseBooking } from '@/hooks/useSupabaseData';
+import { SupabaseBooking, tripTypeLabels } from '@/hooks/useSupabaseData';
+import { Flame, Fuel, ParkingCircle, Route, StickyNote, type LucideIcon } from 'lucide-react';
 import type { ScheduledTrip, MockTrip } from './types';
 
 export const JAIPUR_CENTER = { lat: 26.9124, lng: 75.7873 };
@@ -8,16 +9,24 @@ export const DROP_FALLBACK = { lat: 26.95, lng: 75.9 };
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
-export const TRIP_TYPE_ICONS: Record<string, string> = {
-  city: '🚗', airport: '✈️', outstation: '🛣️', sightseeing: '🏛️',
-};
+export function tripTypeName(type: string): string {
+  return tripTypeLabels[type] ?? type;
+}
 
 export const EXPENSE_LABELS: Record<string, string> = {
-  fuel_petrol: '⛽ Petrol',
-  fuel_cng: '💨 CNG',
-  toll: '🛣️ Toll',
-  parking: '🅿️ Parking',
-  other: '📝 Other',
+  fuel_petrol: 'Petrol',
+  fuel_cng: 'CNG',
+  toll: 'Toll',
+  parking: 'Parking',
+  other: 'Other',
+};
+
+export const EXPENSE_ICONS: Record<string, LucideIcon> = {
+  fuel_petrol: Fuel,
+  fuel_cng: Flame,
+  toll: Route,
+  parking: ParkingCircle,
+  other: StickyNote,
 };
 
 export const documents = [

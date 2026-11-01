@@ -1,18 +1,23 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { MapPin, CalendarDays, Clock } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Info, Loader2, AlertCircle, Banknote, Smartphone, Car, Phone, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { BookingFormData } from './BookingForm';
 import { tripTypeConfig } from './TripTypeSelector';
 import { TripPreviewMap } from '@/components/maps/TripPreviewMap';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 import { useOrg } from '@/hooks/useOrg';
 import { vehicleClassLabel } from '@/lib/dispatch';
 import { saveTrackingToken } from '@/lib/trackingStorage';
+import { bookingRequest, tripEnds } from '@/lib/bookingRequest';
+import { saveCustomer } from '@/lib/savedCustomer';
+import { FareNote } from './FareEstimate';
+import { useFareQuote } from '@/hooks/useFareQuote';
+import { telHref, whatsappHref } from '@/lib/contact';
+import { confirmLabel, tripDays } from '@/lib/customerTrip';
 import { TrackBooking } from './TrackBooking';
+import { TripTypeIcon } from '@/components/TripTypeIcon';
+import { acceptedPayments, pickPayment, PAYMENT_LABELS, type PaymentMethodId } from '@/lib/fleetDisplay';
 
 interface BookingSummaryProps {
   data: BookingFormData;
@@ -20,85 +25,37 @@ interface BookingSummaryProps {
   onDone: () => void;
 }
 
-type PaymentMethod = 'cash' | 'upi' | 'card';
-
-const tripTypeToDb: Record<string, string> = {
-  local: 'city',
-  city_tour: 'sightseeing',
-  intercity: 'outstation',
-  multiday: 'outstation',
-  airport: 'airport',
-};
-
-// The booking request sent to the database. The fare is not part of it: quote_fare() and
-// create_customer_booking() compute it from the fleet's rate card.
-function bookingRequest(data: BookingFormData) {
-  // No date means "now"; the database fills that in, which also keeps this request stable
-  // between renders so the fare quote isn't refetched on every render.
-  const scheduledAt = data.date && data.time
-    ? new Date(`${data.date}T${data.time}`).toISOString()
-    : null;
-
-  return {
-    customer_name: data.customerName || null,
-    customer_phone: data.customerPhone
-      ? '+91' + data.customerPhone.replace(/\D/g, '').slice(-10)
-      : null,
-    pickup: data.pickup,
-    drop: data.tripType === 'city_tour' ? (data.stops[0] || null) : data.drop,
-    scheduled_at: scheduledAt,
-    trip_type: tripTypeToDb[data.tripType] ?? data.tripType,
-    vehicle_class: data.vehicleClass,
-    notes: data.notes?.trim() || null,
-    stops: data.tripType === 'city_tour' && data.stops.length > 0
-      ? JSON.stringify(data.stops)
-      : null,
-    estimated_hours: data.tripType === 'city_tour' ? data.estimatedHours : null,
-    return_date: data.isRoundTrip && data.returnDate
-      ? new Date(data.returnDate).toISOString()
-      : null,
-    number_of_days: (data.tripType === 'multiday' || data.tripType === 'intercity') ? data.numberOfDays : null,
-    driver_stay_required: data.tripType === 'multiday' ? data.driverStayRequired : null,
-  };
-}
-
 export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
-  const [payment, setPayment] = useState<PaymentMethod>('cash');
+  const [chosenPayment, setChosenPayment] = useState<PaymentMethodId | null>(null);
+  const [submitError, setSubmitError] = useState<{ title: string; detail: string | null } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   // Private token from create_customer_booking; customers can't read the bookings table directly.
   const [trackingToken, setTrackingToken] = useState<string | null>(null);
-  const { toast } = useToast();
   const { org } = useOrg();
+  const { fare, isLoading: fareLoading, isError: fareError } = useFareQuote(data);
+  const call = telHref(org?.support_phone);
+  const whatsapp = whatsappHref(org?.whatsapp_phone);
+
+  // Payment follows what the fleet accepts. One method is shown as a fact, not a choice.
+  const acceptedMethods = acceptedPayments(org?.payment_methods);
+  const payment = pickPayment(acceptedMethods, chosenPayment);
+  const cancellationNote = org?.cancellation_note?.trim() || null;
 
   const tripInfo = tripTypeConfig.find((t) => t.id === data.tripType);
   const request = bookingRequest(data);
-  const { data: fare, isError: fareFailed } = useQuery({
-    queryKey: ['fare-quote', org?.id, request],
-    enabled: !!org?.id,
-    queryFn: async () => {
-      const { data: quote, error } = await supabase.rpc('quote_fare', { p_org_id: org!.id, p_booking: request });
-      if (error) throw error;
-      return Number(quote);
-    },
-  });
-  const airportTerminal = `${data.hubCity || 'City'} Airport`;
-  const previewPickup = data.tripType === 'airport' && data.airportDirection === 'arriving'
-    ? airportTerminal
-    : data.pickup;
-  const previewDrop = data.tripType === 'airport'
-    ? data.airportDirection === 'arriving'
-      ? data.pickup
-      : airportTerminal
-    : data.drop;
+  const ends = tripEnds(data);
+  const previewPickup = ends.pickup;
+  const previewDrop = ends.drop;
   const previewStops = data.tripType === 'city_tour'
     ? data.stops.filter(stop => stop.trim().length > 0)
     : [];
 
   const handleConfirm = async () => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
       if (!org?.id) {
-        throw new Error('Organisation not loaded yet. Refresh and try again.');
+        throw new Error('Fleet details are still loading. Try again in a moment.');
       }
 
       const payload = { ...request, payment_method: payment };
@@ -107,13 +64,17 @@ export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
       const { data: rows, error } = await db.rpc('create_customer_booking', { p_org_id: org.id, p_booking: payload });
       if (error) throw error;
       const created = rows?.[0];
-      if (!created?.booking_id) throw new Error('The booking was not saved. Please try again.');
+      if (!created?.booking_id) throw new Error("The booking wasn't saved. Try again.");
       // Keep the token so the live map can be reopened later from this device.
       saveTrackingToken(created.booking_token);
       setTrackingToken(created.booking_token);
+      saveCustomer(org.id, data.customerName, data.customerPhone);
     } catch (err) {
       console.error('Booking error:', err);
-      toast({ title: 'Booking failed', description: err.message, variant: 'destructive' });
+      setSubmitError({
+        title: "Couldn't confirm your booking",
+        detail: typeof err?.message === 'string' && err.message ? err.message : 'Check your connection and try again.',
+      });
     } finally {
       setSubmitting(false);
     }
@@ -130,117 +91,182 @@ export function BookingSummary({ data, onEdit, onDone }: BookingSummaryProps) {
     );
   }
 
+  const days = data.tripType === 'multiday' ? tripDays(data.date, data.numberOfDays) : [];
+  const whenText = data.date && data.time
+    ? new Date(`${data.date}T${data.time}`).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : `${data.date} ${data.time}`;
+  const PayIcon = payment === 'upi' ? Smartphone : Banknote;
+
   return (
-    <div className="space-y-4 animate-slide-up">
-      <div className="flex items-center gap-2">
-        <span className="px-3 py-1 bg-secondary/10 text-secondary-foreground text-xs font-bold rounded-full border border-secondary">
-          {tripInfo?.emoji} {tripInfo?.label}
-        </span>
-      </div>
+    <div className="animate-slide-up space-y-3">
+      <span className="cu-pill cu-tint inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold">
+        <TripTypeIcon type={data.tripType} className="h-4 w-4" />
+        {tripInfo?.label}
+      </span>
 
-      <TripPreviewMap
-        pickup={previewPickup}
-        drop={previewDrop}
-        stops={previewStops}
-        title="Trip preview"
-        subtitle="Review the route before you confirm the booking"
-        mapClassName="h-[260px]"
-      />
+      <div className="grid grid-cols-2 gap-3">
+        {/* Route */}
+        <div className="cu-card col-span-2 overflow-hidden">
+          <TripPreviewMap
+            pickup={previewPickup}
+            drop={previewDrop}
+            stops={previewStops}
+            title="Route"
+            subtitle="Your trip"
+            mapClassName="h-[150px]"
+            className="rounded-none border-0 shadow-none"
+          />
+        </div>
 
-      <Card className="p-5 shadow-elevated rounded-xl">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex flex-col items-center">
-            <div className="h-2.5 w-2.5 rounded-full bg-success" />
-            <div className="w-px h-8 bg-border" />
-            <MapPin className="h-4 w-4 text-destructive" />
+        {/* Fare */}
+        <div className="cu-card cu-tint p-5">
+          <p className="text-xs">Estimated fare</p>
+          <div className="mt-2 min-h-[40px]">
+            {fare !== undefined ? (
+              <span className="cu-serif text-4xl">{`₹${fare.toLocaleString('en-IN')}`}</span>
+            ) : fareError ? (
+              <span className="text-sm font-semibold">Fare unavailable</span>
+            ) : (
+              <span
+                className="block h-9 w-24 animate-pulse rounded-md bg-background/60"
+                role={fareLoading ? 'status' : undefined}
+                aria-label={fareLoading ? 'Loading fare' : undefined}
+              />
+            )}
           </div>
-          <div className="flex-1 space-y-3">
-            <div>
-              <p className="text-xs text-muted-foreground">Pickup</p>
-              <p className="text-sm font-semibold">{data.pickup}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">
-                {data.tripType === 'city_tour' ? 'Stops' : 'Drop'}
-              </p>
-              {data.tripType === 'city_tour' && data.stops.length > 0 ? (
-                <ul className="space-y-1">
-                  {data.stops.map((stop, index) => (
-                    <li key={index} className="text-sm font-semibold">{index + 1}. {stop}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm font-semibold">{data.drop || '-'}</p>
-              )}
-            </div>
+          <div className="mt-2"><FareNote tripType={data.tripType} /></div>
+        </div>
+
+        {/* Pickup time */}
+        <div className="cu-card p-5">
+          <CalendarDays className="h-5 w-5 text-primary" aria-hidden />
+          <p className="mt-3 text-xs text-muted-foreground">{data.tripType === 'airport' ? 'Flight time' : 'Pickup time'}</p>
+          <p className="text-sm font-semibold">{whenText}</p>
+          {data.tripType === 'airport' && data.flightNumber && (
+            <p className="mt-1 text-xs text-muted-foreground">Flight {data.flightNumber}</p>
+          )}
+          {data.tripType === 'city_tour' && <p className="mt-1 text-xs text-muted-foreground">{data.estimatedHours} hrs</p>}
+          {data.tripType === 'intercity' && data.isRoundTrip && data.returnDate && (
+            <p className="mt-1 text-xs text-muted-foreground">Return: {data.returnDate}</p>
+          )}
+        </div>
+
+        {/* Car size */}
+        <div className="cu-card col-span-2 flex items-center gap-3 p-5">
+          <Car className="h-5 w-5 text-primary" aria-hidden />
+          <div>
+            <p className="text-xs text-muted-foreground">Car size</p>
+            <p className="text-sm font-semibold">{vehicleClassLabel[data.vehicleClass]}</p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground border-t pt-3">
-          <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />{data.date}</span>
-          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{data.time}</span>
-          {data.tripType === 'city_tour' && (
-            <span>{data.estimatedHours} hrs</span>
-          )}
-          {data.tripType === 'intercity' && data.isRoundTrip && (
-            <span>Return: {data.returnDate}</span>
-          )}
-          {data.tripType === 'multiday' && (
+        {/* Payment */}
+        <div className={cn('cu-card p-5', acceptedMethods.length > 1 ? 'col-span-2' : '')}>
+          {acceptedMethods.length === 1 ? (
             <>
-              <span>{data.numberOfDays} days</span>
-              {data.driverStayRequired && <span>Driver stay required</span>}
+              <PayIcon className="h-5 w-5 text-primary" aria-hidden />
+              <p className="mt-3 text-xs text-muted-foreground">Payment</p>
+              <p className="text-sm font-semibold">Pay {PAYMENT_LABELS[payment]} to your driver</p>
+            </>
+          ) : (
+            <>
+              <p className="mb-2 text-xs font-semibold text-muted-foreground">Payment method</p>
+              <div className="flex gap-2">
+                {acceptedMethods.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={payment === id}
+                    onClick={() => setChosenPayment(id)}
+                    className={cn(
+                      'flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full border text-sm font-semibold transition-colors',
+                      payment === id ? 'cu-tint border-primary' : 'border-border bg-card text-muted-foreground',
+                    )}
+                  >
+                    {id === 'upi' ? <Smartphone className="h-4 w-4" aria-hidden /> : <Banknote className="h-4 w-4" aria-hidden />}
+                    {PAYMENT_LABELS[id]}
+                  </button>
+                ))}
+              </div>
             </>
           )}
-          <span>{vehicleClassLabel[data.vehicleClass]}</span>
-          {data.tripType === 'airport' && data.flightNumber && (
-            <span>Flight {data.flightNumber}</span>
-          )}
         </div>
-      </Card>
 
-      <Card className="p-5 shadow-elevated rounded-xl">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-sm text-muted-foreground">Estimated Fare</span>
-          <span className="text-2xl font-bold">{fare !== undefined ? `₹${fare.toLocaleString()}` : fareFailed ? 'Unavailable' : '…'}</span>
-        </div>
-        <p className="text-xs text-muted-foreground">Final fare may vary based on route and stops</p>
-      </Card>
-
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground mb-2">Payment method</p>
-        <div className="flex gap-2">
-          {([
-            { id: 'cash' as PaymentMethod, label: 'Cash' },
-            { id: 'upi' as PaymentMethod, label: 'UPI' },
-            { id: 'card' as PaymentMethod, label: 'Card' },
-          ]).map((paymentMethod) => (
-            <button
-              key={paymentMethod.id}
-              onClick={() => setPayment(paymentMethod.id)}
-              className={cn(
-                'flex-1 py-2.5 rounded-lg text-xs font-semibold border transition',
-                payment === paymentMethod.id
-                  ? 'bg-secondary text-secondary-foreground border-secondary'
-                  : 'bg-card text-muted-foreground border-border'
-              )}
-            >
-              {paymentMethod.label}
-            </button>
-          ))}
-        </div>
+        {/* Multi-day plan */}
+        {data.tripType === 'multiday' && days.length > 0 && (
+          <div className="cu-card col-span-2 p-5">
+            <p className="cu-serif text-xl">{data.numberOfDays} {data.numberOfDays === 1 ? 'day' : 'days'}</p>
+            <ul className="mt-3 space-y-2">
+              {days.map(day => (
+                <li key={day.label} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-semibold">{day.label}</span>
+                  <span className="text-muted-foreground">{day.date}</span>
+                </li>
+              ))}
+            </ul>
+            {data.driverStayRequired && <p className="mt-3 text-xs text-muted-foreground">Driver stay required</p>}
+          </div>
+        )}
       </div>
 
-      <div className="flex gap-3">
-        <Button variant="outline" onClick={onEdit} className="flex-1 h-12 rounded-xl font-semibold">
-          Back to edit
-        </Button>
-        <button
-          onClick={handleConfirm}
-          disabled={submitting}
-          className="flex-1 h-12 kinetic-gradient text-white rounded-xl font-bold font-display disabled:opacity-60 transition-opacity hover:opacity-90"
-        >
-          {submitting ? 'Saving...' : 'Confirm Booking'}
-        </button>
+      {cancellationNote && (
+        <p className="flex items-start gap-2 px-1 text-sm text-muted-foreground">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>{cancellationNote}</span>
+        </p>
+      )}
+
+      {(call || whatsapp) && (
+        <div className="flex items-center justify-between gap-3 px-1">
+          <p className="text-sm font-semibold">Need help?</p>
+          <div className="flex gap-3">
+            {call && (
+              <a href={call} aria-label="Call us" className="cu-icon-btn bg-primary text-primary-foreground">
+                <Phone className="h-5 w-5" aria-hidden />
+              </a>
+            )}
+            {whatsapp && (
+              <a href={whatsapp} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp us" className="cu-icon-btn cu-tint">
+                <MessageCircle className="h-5 w-5" aria-hidden />
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {submitError && (
+        <div role="alert" className="flex items-start gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
+          <div>
+            <p className="font-semibold text-destructive">{submitError.title}</p>
+            {submitError.detail && <p className="text-muted-foreground">{submitError.detail}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* Sticky bar */}
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border/60 bg-[hsl(var(--cu-page))] pb-[env(safe-area-inset-bottom)]">
+        <div className="mx-auto flex max-w-md items-center gap-3 px-6 py-3">
+          <button
+            type="button"
+            aria-label="Edit booking"
+            onClick={onEdit}
+            disabled={submitting}
+            className="cu-icon-btn cu-card disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ArrowLeft className="h-5 w-5" aria-hidden />
+          </button>
+          <Button
+            type="button"
+            onClick={handleConfirm}
+            disabled={submitting}
+            className="h-12 flex-1 rounded-full text-base font-semibold"
+          >
+            {submitting
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> Confirming</>
+              : submitError ? 'Try again' : confirmLabel(fare)}
+          </Button>
+        </div>
       </div>
     </div>
   );

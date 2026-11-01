@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Car, Clock, ChevronLeft, Loader2, Zap } from 'lucide-react';
+import { useState, useEffect, type ReactNode } from 'react';
+import { AlertCircle, Clock, ChevronLeft, Loader2 } from 'lucide-react';
+import { FleetMark } from '@/components/FleetMark';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,7 +17,7 @@ type Screen = 'phone' | 'pin' | 'register' | 'holding' | 'app';
 
 const isActive = (status: string | null | undefined) => status === 'free' || status === 'on-trip';
 
-export function DriverLoginPage({ onSignedIn }: { onSignedIn?: () => void } = {}) {
+export function DriverLoginPage({ onSignedIn, onBack }: { onSignedIn?: () => void; onBack?: () => void } = {}) {
   const [screen, setScreen] = useState<Screen>('phone');
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
@@ -126,151 +127,150 @@ export function DriverLoginPage({ onSignedIn }: { onSignedIn?: () => void } = {}
     return <DriverApp driver={foundDriver} />;
   }
 
+  const brandName = org?.brand_name?.trim() || null;
+
+  // Every step shares one frame: the fleet's mark and name on top, then the step.
+  const frame = (children: ReactNode) => (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-8">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col items-center gap-3 mb-6 text-center">
+          <FleetMark name={brandName} logoUrl={org?.brand_logo_url} size="lg" tone="onSurface" />
+          {brandName && <p className="text-base font-semibold text-foreground">{brandName}</p>}
+        </div>
+        <div className="bg-card rounded-xl border shadow-card p-6">{children}</div>
+        {onBack && screen === 'phone' && (
+          <button
+            onClick={onBack}
+            className="mt-4 mx-auto flex min-h-[44px] items-center gap-1 px-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back to booking
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  const errorLine = error && (
+    <p role="alert" className="mb-4 flex items-start gap-2 text-sm text-destructive">
+      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden />
+      <span>{error}</span>
+    </p>
+  );
+
+  const backButton = (onClick: () => void) => (
+    <button
+      className="-ml-3 mb-4 flex min-h-[44px] items-center gap-1 px-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      onClick={onClick}
+    >
+      <ChevronLeft className="h-4 w-4" />
+      Back
+    </button>
+  );
+
   if (screen === 'holding') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-        <Clock className="h-16 w-16 text-muted-foreground mb-6" />
-        <h2 className="text-xl font-bold mb-2">Application Under Review</h2>
-        <p className="text-sm text-muted-foreground max-w-xs mb-4">
-          Your details have been submitted to the fleet manager. You will be added once approved.
-        </p>
-        <p className="text-xs text-muted-foreground">
-          For help, contact your fleet manager directly.
+    return frame(
+      <div className="text-center">
+        <Clock className="h-10 w-10 text-muted-foreground mx-auto mb-4" aria-hidden />
+        <h1 className="text-xl font-semibold mb-2">Application under review</h1>
+        <p className="text-sm text-muted-foreground">
+          Your details are with the fleet manager. You can sign in once you are approved.
         </p>
       </div>
     );
   }
 
   if (screen === 'phone') {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="w-full max-w-sm bg-card rounded-[2rem] shadow-elevated p-10">
-          <div className="text-center mb-8">
-            <div className="w-14 h-14 kinetic-gradient rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-elevated">
-              <Zap className="h-7 w-7 text-white" />
-            </div>
-            <h1 className="text-2xl font-display font-black tracking-tighter text-foreground">Driver Login</h1>
-            <p className="text-sm text-muted-foreground mt-1 font-label">
-              Enter your registered mobile number
-            </p>
+    return frame(
+      <>
+        <h1 className="text-xl font-semibold">Driver login</h1>
+        <p className="text-sm text-muted-foreground mt-1 mb-6">Enter your registered mobile number</p>
+
+        <div className="flex gap-2 mb-4">
+          <div className="flex h-12 items-center justify-center px-3 bg-muted rounded-md text-sm font-medium text-muted-foreground border">
+            +91
           </div>
-
-          <div className="flex gap-2 mb-4">
-            <div className="flex items-center justify-center px-3 bg-muted rounded-md text-sm font-medium text-muted-foreground border">
-              +91
-            </div>
-            <Input
-              type="tel"
-              maxLength={10}
-              placeholder="9876543210"
-              value={phone}
-              onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
-            />
-          </div>
-
-          {error && <p className="text-sm text-destructive mb-3">{error}</p>}
-
-          <button
-            className="w-full kinetic-gradient text-white font-bold font-display rounded-xl py-3 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-60"
-            disabled={loading || phone.length !== 10}
-            onClick={handleContinue}
-          >
-            Continue
-          </button>
+          <Input
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            maxLength={10}
+            placeholder="9876543210"
+            aria-label="Mobile number"
+            value={phone}
+            onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+            className="h-12"
+          />
         </div>
-      </div>
+
+        {errorLine}
+
+        <Button className="w-full h-12 rounded-xl font-semibold" disabled={loading || phone.length !== 10} onClick={handleContinue}>
+          Continue
+        </Button>
+      </>
     );
   }
 
   if (screen === 'register') {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="w-full max-w-sm bg-card rounded-[2rem] shadow-elevated p-10 space-y-3">
-          <button
-            className="text-xs text-muted-foreground mb-1 flex items-center gap-1 hover:text-foreground transition-colors"
-            onClick={() => { setScreen('pin'); setError(null); }}
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-            Back
-          </button>
-          <h1 className="text-xl font-bold text-center">Join this fleet</h1>
-          <p className="text-sm text-muted-foreground text-center">
-            Your fleet manager approves you and gives you a PIN for +91 ••••••{phone.slice(-4)}.
-          </p>
-          <div>
-            <Label htmlFor="driverName" className="font-label text-sm text-muted-foreground">Full Name</Label>
-            <Input
-              id="driverName"
-              placeholder="e.g. Ramesh Kumar"
-              value={driverName}
-              onChange={e => setDriverName(e.target.value)}
-              className="bg-muted border-none rounded-xl mt-1"
-            />
-          </div>
-          {error && <p className="text-sm text-destructive text-center">{error}</p>}
-          <button
-            className="w-full kinetic-gradient text-white font-bold font-display rounded-xl py-3 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-60"
-            disabled={loading || !driverName.trim()}
-            onClick={handleRegister}
-          >
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Register
-          </button>
+    return frame(
+      <>
+        {backButton(() => { setScreen('pin'); setError(null); })}
+        <h1 className="text-xl font-semibold">Join this fleet</h1>
+        <p className="text-sm text-muted-foreground mt-1 mb-6">
+          Your fleet manager approves you and gives you a PIN for +91 ••••••{phone.slice(-4)}.
+        </p>
+        <div className="mb-4">
+          <Label htmlFor="driverName" className="text-sm text-muted-foreground">Full name</Label>
+          <Input
+            id="driverName"
+            placeholder="e.g. Ramesh Kumar"
+            value={driverName}
+            onChange={e => setDriverName(e.target.value)}
+            className="h-12 mt-1"
+          />
         </div>
-      </div>
+        {errorLine}
+        <Button className="w-full h-12 rounded-xl font-semibold" disabled={loading || !driverName.trim()} onClick={handleRegister}>
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          Register
+        </Button>
+      </>
     );
   }
 
   // screen === 'pin'
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
-      <div className="w-full max-w-sm bg-card rounded-[2rem] shadow-elevated p-10">
-        <button
-          className="text-xs text-muted-foreground mb-4 flex items-center gap-1 hover:text-foreground transition-colors"
-          onClick={() => { setScreen('phone'); setPin(''); setError(null); }}
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          Back
-        </button>
+  return frame(
+    <>
+      {backButton(() => { setScreen('phone'); setPin(''); setError(null); })}
+      <h1 className="text-xl font-semibold">Enter your PIN</h1>
+      <p className="text-sm text-muted-foreground mt-1 mb-6">
+        6-digit PIN from your fleet manager for +91 ••••••{phone.slice(-4)}
+      </p>
 
-        <div className="text-center mb-6">
-          <h1 className="text-xl font-bold">Enter your PIN</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            6-digit PIN from your fleet manager for +91 ••••••{phone.slice(-4)}
-          </p>
-        </div>
-
-        <div className="flex justify-center mb-4">
-          <InputOTP maxLength={6} value={pin} onChange={setPin}>
-            <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-              <InputOTPSlot index={3} />
-              <InputOTPSlot index={4} />
-              <InputOTPSlot index={5} />
-            </InputOTPGroup>
-          </InputOTP>
-        </div>
-
-        {error && <p className="text-sm text-destructive mb-3 text-center">{error}</p>}
-
-        <button
-          className="w-full kinetic-gradient text-white font-bold font-display rounded-xl py-3 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-60 mb-4"
-          onClick={handleVerify}
-          disabled={loading || pin.length < 6}
-        >
-          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          Sign in
-        </button>
-
-        <button
-          className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
-          onClick={() => { setScreen('register'); setError(null); }}
-        >
-          New driver? Register to join this fleet
-        </button>
+      <div className="flex justify-center mb-4">
+        <InputOTP maxLength={6} value={pin} onChange={setPin} inputMode="numeric">
+          <InputOTPGroup>
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <InputOTPSlot key={i} index={i} className="h-12 w-11" />
+            ))}
+          </InputOTPGroup>
+        </InputOTP>
       </div>
-    </div>
+
+      {errorLine}
+
+      <Button className="w-full h-12 rounded-xl font-semibold mb-2" onClick={handleVerify} disabled={loading || pin.length < 6}>
+        {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+        Sign in
+      </Button>
+
+      <button
+        className="w-full min-h-[44px] text-sm text-muted-foreground hover:text-foreground transition-colors"
+        onClick={() => { setScreen('register'); setError(null); }}
+      >
+        New driver? Register to join this fleet
+      </button>
+    </>
   );
 }

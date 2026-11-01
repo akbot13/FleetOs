@@ -718,6 +718,38 @@ export type Database = {
         }
         Relationships: []
       }
+      org_driver_info: {
+        Row: {
+          office_phone: string | null
+          org_id: string
+          rules: string | null
+          updated_at: string | null
+          welcome_note: string | null
+        }
+        Insert: {
+          office_phone?: string | null
+          org_id: string
+          rules?: string | null
+          updated_at?: string | null
+          welcome_note?: string | null
+        }
+        Update: {
+          office_phone?: string | null
+          org_id?: string
+          rules?: string | null
+          updated_at?: string | null
+          welcome_note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_driver_info_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_pricing: {
         Row: {
           airport_flat_fare: number | null
@@ -782,58 +814,91 @@ export type Database = {
           admin_user_id: string | null
           brand_color: string | null
           brand_logo_url: string | null
+          cover_image_url: string | null
           brand_name: string
+          cancellation_note: string | null
           created_at: string | null
           custom_domain: string | null
           google_drive_connected: boolean | null
           google_drive_token: Json | null
           google_review_url: string | null
+          highlights: string[]
           id: string
           join_code: string
           name: string
+          payment_methods: string[]
           report_frequency_days: number | null
+          service_area: string | null
+          service_hours: string | null
           slug: string
+          support_phone: string | null
+          tagline: string | null
+          thank_you_message: string | null
           upi_id: string | null
           upi_qr_url: string | null
+          welcome_message: string | null
           whatsapp_api_key: string | null
+          whatsapp_phone: string | null
         }
         Insert: {
           admin_user_id?: string | null
           brand_color?: string | null
           brand_logo_url?: string | null
+          cover_image_url?: string | null
           brand_name: string
+          cancellation_note?: string | null
           created_at?: string | null
           custom_domain?: string | null
           google_drive_connected?: boolean | null
           google_drive_token?: Json | null
           google_review_url?: string | null
+          highlights?: string[]
           id?: string
           join_code: string
           name: string
+          payment_methods?: string[]
           report_frequency_days?: number | null
+          service_area?: string | null
+          service_hours?: string | null
           slug: string
+          support_phone?: string | null
+          tagline?: string | null
+          thank_you_message?: string | null
           upi_id?: string | null
           upi_qr_url?: string | null
+          welcome_message?: string | null
           whatsapp_api_key?: string | null
+          whatsapp_phone?: string | null
         }
         Update: {
           admin_user_id?: string | null
           brand_color?: string | null
           brand_logo_url?: string | null
+          cover_image_url?: string | null
           brand_name?: string
+          cancellation_note?: string | null
           created_at?: string | null
           custom_domain?: string | null
           google_drive_connected?: boolean | null
           google_drive_token?: Json | null
           google_review_url?: string | null
+          highlights?: string[]
           id?: string
           join_code?: string
           name?: string
+          payment_methods?: string[]
           report_frequency_days?: number | null
+          service_area?: string | null
+          service_hours?: string | null
           slug?: string
+          support_phone?: string | null
+          tagline?: string | null
+          thank_you_message?: string | null
           upi_id?: string | null
           upi_qr_url?: string | null
+          welcome_message?: string | null
           whatsapp_api_key?: string | null
+          whatsapp_phone?: string | null
         }
         Relationships: []
       }

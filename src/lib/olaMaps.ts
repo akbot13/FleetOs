@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 
+import { addressFromReverse } from '@/lib/customerTrip';
+
 // The parts of Leaflet that FleetOs uses. Leaflet is loaded from the CDN at runtime, so its own
 // types aren't available.
 type LatLngPair = [number, number];
@@ -657,6 +659,32 @@ async function geocodeAcrossProviders(query: string): Promise<OlaPlaceDetails | 
 
   try {
     return await nominatimGeocodeOnly(query);
+  } catch {
+    return null;
+  }
+}
+
+/** Street address for a coordinate, or null. Ola Maps first when configured, then the open Nominatim service. */
+export async function olaReverseGeocode(lat: number, lng: number): Promise<string | null> {
+  if (isOlaMapsConfigured()) {
+    try {
+      const payload = await fetchJson<unknown>(
+        olaUrl('/places/v1/reverse-geocode', { latlng: encodeLatLng(lat, lng) }),
+        'ola'
+      );
+      const address = addressFromReverse(payload);
+      if (address) return address;
+    } catch {
+      // Fall through to the open fallback.
+    }
+  }
+
+  try {
+    const url = new URL('https://nominatim.openstreetmap.org/reverse');
+    url.searchParams.set('format', 'jsonv2');
+    url.searchParams.set('lat', String(lat));
+    url.searchParams.set('lon', String(lng));
+    return addressFromReverse(await fetchJson<unknown>(url.toString(), 'nominatim'));
   } catch {
     return null;
   }

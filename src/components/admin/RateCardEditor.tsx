@@ -171,7 +171,7 @@ export function RateCardEditor() {
               <p className="mt-1">
                 The database hasn't been updated for rate cards yet, so this can't be saved. You can still design a
                 rate card and see what it would charge. Saving turns on once migration
-                <code className="mx-1 text-xs">20261030000000_rate_cards.sql</code> is applied.
+                <code className="mx-1 text-xs">20261101000000_rate_cards.sql</code> is applied.
               </p>
             </div>
           </div>

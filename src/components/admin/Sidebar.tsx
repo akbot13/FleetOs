@@ -22,7 +22,7 @@ export function Sidebar({ activeTab = 'dashboard', onNewBooking, onTabChange }: 
   const { org } = useOrg();
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-64 flex flex-col py-8 z-50 bg-sidebar border-r border-sidebar-border">
+    <aside className="fixed left-0 top-0 h-full w-64 hidden md:flex flex-col py-8 z-50 bg-sidebar border-r border-sidebar-border">
       {/* Brand block */}
       <div className="px-6 mb-10">
         <div className="flex items-center gap-3 mb-1">

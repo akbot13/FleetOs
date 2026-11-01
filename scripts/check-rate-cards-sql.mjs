@@ -35,7 +35,7 @@ const previousQuote = previous.slice(
 ).replace('public.quote_fare(', 'public.quote_fare_previous(');
 await db.exec(previousQuote);
 
-await db.exec(read('supabase/migrations/20261030000000_rate_cards.sql').replace(/NOTIFY pgrst[^;]*;/, ''));
+await db.exec(read('supabase/migrations/20261101000000_rate_cards.sql').replace(/NOTIFY pgrst[^;]*;/, ''));
 
 let failures = 0;
 const fail = (msg) => { failures++; console.error('FAIL', msg); };
@@ -110,7 +110,7 @@ console.log(`same as previous quote_fare: ${compared} combinations checked`);
   console.log('customer distance ignored: checked');
 }
 
-// 3. set_driver_pin(): the original (20261025010000) can't save a PIN; the fix (20261030010000)
+// 3. set_driver_pin(): the original (20261025010000) can't save a PIN; the fix (20261101010000)
 //    can. PGlite has no pgcrypto, so crypt() and gen_salt() are stand-ins: this checks the table
 //    the PIN goes to, not the hashing.
 {
@@ -133,7 +133,7 @@ console.log(`same as previous quote_fare: ${compared} combinations checked`);
   try { await db.query(`SELECT public.set_driver_pin(1, '123456')`); } catch { originalFailed = true; }
   if (!originalFailed) fail('the original set_driver_pin() was expected to fail on sdpublic.driver_pins');
 
-  await db.exec(read('supabase/migrations/20261030010000_fix_set_driver_pin_schema.sql').replace(/NOTIFY pgrst[^;]*;/, ''));
+  await db.exec(read('supabase/migrations/20261101010000_fix_set_driver_pin_schema.sql').replace(/NOTIFY pgrst[^;]*;/, ''));
   await db.query(`SELECT public.set_driver_pin(1, '123456')`);
   const { rows } = await db.query('SELECT pin_hash FROM public.driver_pins WHERE driver_id = 1');
   const { rows: driver } = await db.query('SELECT auth_user_id FROM public.drivers WHERE id = 1');

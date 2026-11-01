@@ -2,6 +2,7 @@ import { cloneElement, isValidElement, useEffect, useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { NewBookingSheet } from './NewBookingSheet';
+import { MobileNav } from './MobileNav';
 import { useDrivers } from '@/hooks/useSupabaseData';
 
 export type ActiveTab = 'dashboard' | 'bookings' | 'drivers' | 'collections' | 'settings';
@@ -9,9 +10,10 @@ export type ActiveTab = 'dashboard' | 'bookings' | 'drivers' | 'collections' | '
 interface AdminShellProps {
   children: React.ReactNode;
   activeTab?: ActiveTab;
+  onOpenPricing?: () => void;
 }
 
-export function AdminShell({ children, activeTab = 'dashboard' }: AdminShellProps) {
+export function AdminShell({ children, activeTab = 'dashboard', onOpenPricing }: AdminShellProps) {
   const [showNewBooking, setShowNewBooking] = useState(false);
   const [currentTab, setCurrentTab] = useState<ActiveTab>(activeTab);
   const { data: drivers = [] } = useDrivers();
@@ -21,7 +23,7 @@ export function AdminShell({ children, activeTab = 'dashboard' }: AdminShellProp
   }, [activeTab]);
 
   const content = isValidElement(children)
-    ? cloneElement(children, { activeSection: currentTab } as { activeSection: ActiveTab })
+    ? cloneElement(children, { activeSection: currentTab, onOpenPricing } as { activeSection: ActiveTab; onOpenPricing?: () => void })
     : children;
 
   return (
@@ -29,7 +31,9 @@ export function AdminShell({ children, activeTab = 'dashboard' }: AdminShellProp
       <Sidebar activeTab={currentTab} onNewBooking={() => setShowNewBooking(true)} onTabChange={setCurrentTab} />
       <TopHeader activeTab={currentTab} onNewBooking={() => setShowNewBooking(true)} onTabChange={setCurrentTab} />
 
-      <main className="ml-64 pt-20 min-h-screen">
+      <MobileNav activeTab={currentTab} onTabChange={setCurrentTab} onNewBooking={() => setShowNewBooking(true)} />
+
+      <main className="md:ml-64 pt-24 md:pt-20 min-h-screen">
         {content}
       </main>
 

@@ -1,7 +1,7 @@
 // Rate cards: how a fleet prices each kind of trip, and the fare calculator that reads them.
 //
 // The database has the same calculator (quote_fare_from_card in
-// supabase/migrations/20261030000000_rate_cards.sql) and always has the final say on what a
+// supabase/migrations/20261101000000_rate_cards.sql) and always has the final say on what a
 // customer pays. This copy lets the Pricing screen preview a fare for rates that aren't saved
 // yet. Both are checked against the same cases in src/lib/pricingCases.json.
 

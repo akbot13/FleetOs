@@ -172,12 +172,7 @@ export const tripTypeLabels: Record<string, string> = {
   outstation: 'Outstation',
 };
 
-export const tripTypeIcons: Record<string, string> = {
-  city: '🚗',
-  airport: '✈️',
-  sightseeing: '🏛️',
-  outstation: '🛣️',
-};
+export { tripTypeIcons } from '@/lib/tripTypeIcons';
 
 export function getDriverInitials(name: string | null): string {
   if (!name) return '??';

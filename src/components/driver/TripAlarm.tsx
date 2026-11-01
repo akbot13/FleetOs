@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, XCircle } from 'lucide-react';
 import type { ScheduledTrip } from './types';
-import { TRIP_TYPE_ICONS, formatTime, getHoursUntil } from './helpers';
+import { TripTypeIcon } from '@/components/TripTypeIcon';
+import { formatTime, getHoursUntil } from './helpers';
 
 // ─── ALARM COMPONENT ─────────────────────────────────────────────────────────
 
@@ -48,11 +49,11 @@ export function TripAlarm({ trip, onConfirm, onDismiss }: {
       <div className="relative flex items-center justify-center">
         <div className="absolute h-64 w-64 rounded-full bg-orange-500/20 animate-ping" />
         <div className="absolute h-48 w-48 rounded-full bg-orange-500/30 animate-ping" style={{ animationDelay: '0.2s' }} />
-        <div className="relative z-10 bg-gray-900 border-2 border-orange-500 rounded-3xl p-6 mx-6 max-w-sm w-full shadow-2xl">
+        <div className="relative z-10 bg-gray-900 border-2 border-orange-500 rounded-xl p-6 mx-6 max-w-sm w-full shadow-2xl">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-full bg-orange-500 animate-pulse" />
-              <span className="text-orange-400 text-xs font-bold uppercase tracking-widest">New Trip Assigned</span>
+              <span className="text-orange-400 text-xs font-semibold uppercase tracking-wider">New trip assigned</span>
             </div>
             <span className="text-gray-400 text-xs font-mono">{countdown}s</span>
           </div>
@@ -61,7 +62,7 @@ export function TripAlarm({ trip, onConfirm, onDismiss }: {
           </div>
           <div className="mb-5">
             <div className="text-2xl font-black text-white mb-1">{trip.customerName}</div>
-            <div className="text-orange-400 font-bold text-lg mb-3">{TRIP_TYPE_ICONS[trip.tripType]} ₹{trip.fare.toLocaleString()}</div>
+            <div className="text-orange-400 font-semibold text-lg mb-3 flex items-center gap-2"><TripTypeIcon type={trip.tripType} className="h-5 w-5" />₹{trip.fare.toLocaleString()}</div>
             <div className="space-y-2.5">
               <div className="flex items-start gap-2.5">
                 <div className="h-2.5 w-2.5 rounded-full bg-green-500 mt-1.5 flex-shrink-0" />
@@ -73,16 +74,16 @@ export function TripAlarm({ trip, onConfirm, onDismiss }: {
               </div>
             </div>
             <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-700">
-              <div className="text-center flex-1"><div className="text-white font-bold">{formatTime(trip.scheduledAt)}</div><div className="text-gray-400 text-[10px] uppercase tracking-wider">Pickup Time</div></div>
-              <div className="text-center flex-1"><div className="text-white font-bold">{trip.distance}</div><div className="text-gray-400 text-[10px] uppercase tracking-wider">Distance</div></div>
-              <div className="text-center flex-1"><div className="text-orange-400 font-bold">{getHoursUntil(trip.scheduledAt)}</div><div className="text-gray-400 text-[10px] uppercase tracking-wider">ETA</div></div>
+              <div className="text-center flex-1"><div className="text-white font-bold">{formatTime(trip.scheduledAt)}</div><div className="text-gray-400 text-xs">Pickup time</div></div>
+              <div className="text-center flex-1"><div className="text-white font-bold">{trip.distance}</div><div className="text-gray-400 text-xs">Distance</div></div>
+              <div className="text-center flex-1"><div className="text-orange-400 font-bold">{getHoursUntil(trip.scheduledAt)}</div><div className="text-gray-400 text-xs">ETA</div></div>
             </div>
           </div>
           <div className="flex gap-3">
-            <button onClick={onConfirm} className="flex-1 py-4 rounded-2xl kinetic-gradient active:scale-95 transition-all font-display font-black text-white text-xl flex items-center justify-center gap-2 shadow-elevated min-h-[64px]">
-              <CheckCircle className="h-5 w-5" /> CONFIRM
+            <button onClick={onConfirm} className="flex-1 py-4 rounded-xl bg-green-500 hover:bg-green-400 active:scale-95 transition-all font-semibold text-gray-950 text-lg flex items-center justify-center gap-2 min-h-[64px]">
+              <CheckCircle className="h-5 w-5" /> Confirm
             </button>
-            <button onClick={onDismiss} className="flex-1 py-4 rounded-2xl bg-gray-700 hover:bg-gray-600 active:scale-95 transition-all font-bold text-gray-300 text-base flex items-center justify-center gap-2">
+            <button onClick={onDismiss} className="flex-1 py-4 rounded-xl bg-gray-700 hover:bg-gray-600 active:scale-95 transition-all font-semibold text-gray-200 text-base min-h-[64px] flex items-center justify-center gap-2">
               <XCircle className="h-5 w-5" /> Later
             </button>
           </div>

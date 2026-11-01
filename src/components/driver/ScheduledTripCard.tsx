@@ -1,7 +1,8 @@
 import { CheckCircle, WifiOff, AlarmClock } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import type { ScheduledTrip } from './types';
-import { TRIP_TYPE_ICONS, formatTime, formatDate, getHoursUntil } from './helpers';
+import { TripTypeIcon } from '@/components/TripTypeIcon';
+import { tripTypeName, formatTime, formatDate, getHoursUntil } from './helpers';
 
 // ─── SCHEDULED TRIP CARD ──────────────────────────────────────────────────────
 
@@ -16,13 +17,13 @@ export function ScheduledTripCard({ trip, isOffline, onConfirm, onTap }: {
 
   return (
     <Card
-      className={`p-4 border cursor-pointer ${isUrgent ? 'border-orange-500/50 bg-orange-500/5' : 'border-gray-700 bg-gray-900'}`}
+      className={`p-4 rounded-xl border cursor-pointer ${isUrgent ? 'border-orange-500/50 bg-orange-500/5' : 'border-gray-700 bg-gray-900'}`}
       onClick={() => onTap(trip)}
     >
       <div className="flex items-start justify-between mb-3">
         <div>
-          <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5">{TRIP_TYPE_ICONS[trip.tripType]} {trip.tripType}</div>
-          <div className="font-bold text-white">{trip.customerName}</div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><TripTypeIcon type={trip.tripType} />{tripTypeName(trip.tripType)}</div>
+          <div className="font-semibold text-white">{trip.customerName}</div>
         </div>
         <div className="text-right">
           <div className="text-lg font-black text-white">₹{trip.fare.toLocaleString()}</div>
@@ -44,16 +45,16 @@ export function ScheduledTripCard({ trip, isOffline, onConfirm, onTap }: {
         <div className="flex gap-2">
           <button
             onClick={(e) => { e.stopPropagation(); onConfirm(trip.id); }}
-            className="flex-1 py-2.5 rounded-xl bg-green-500 hover:bg-green-400 active:scale-95 transition-all text-white text-sm font-bold flex items-center justify-center gap-2"
+            className="flex-1 min-h-[44px] rounded-xl bg-green-500 hover:bg-green-400 active:scale-95 transition-all text-gray-950 text-sm font-semibold flex items-center justify-center gap-2"
           >
-            <CheckCircle className="h-4 w-4" /> Confirm Trip
+            <CheckCircle className="h-4 w-4" /> Confirm trip
           </button>
-          {isOffline && <div className="flex items-center gap-1 text-[10px] text-orange-400 px-2"><WifiOff className="h-3 w-3" /><span>Offline·saves locally</span></div>}
+          {isOffline && <div className="flex items-center gap-1 text-xs text-orange-300 px-2"><WifiOff className="h-3 w-3" /><span>Offline, saves locally</span></div>}
         </div>
       ) : (
         <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-green-500/10 border border-green-500/20">
           <CheckCircle className="h-4 w-4 text-green-400" />
-          <span className="text-sm font-bold text-green-300">Confirmed</span>
+          <span className="text-sm font-semibold text-green-300">Confirmed</span>
           {isOffline && <WifiOff className="h-3 w-3 text-orange-400 ml-auto" />}
         </div>
       )}

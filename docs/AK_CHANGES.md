@@ -11,8 +11,8 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | --- | --- | --- |
 | Add `https://fleetoss.vercel.app` and `http://localhost:8080` to the Ola Maps key's allowed domains | Address search on the live site fails with "Domain is not allowed" (403) | Ola Maps dashboard |
 | Check or renew the Mappls access token | Mappls answers 503 / is blocked | Mappls console, then Vercel env |
-| Review, then apply `supabase/migrations/20261030000000_rate_cards.sql` (a test project first is best), then `npm run db:check` | Turns on saving in the new Rate card screen (#6, #7). Fares don't change until a rate card is saved | Supabase |
-| Check the live `set_driver_pin()` uses `public.driver_pins`; optionally apply `20261030010000_fix_set_driver_pin_schema.sql` | The original migration had a typo (#14); the new migration fixes it for fresh databases | Supabase |
+| Review, then apply `supabase/migrations/20261101000000_rate_cards.sql` (a test project first is best), then `npm run db:check` | Turns on saving in the new Rate card screen (#6, #7). Fares don't change until a rate card is saved | Supabase |
+| Check the live `set_driver_pin()` uses `public.driver_pins`; optionally apply `20261101010000_fix_set_driver_pin_schema.sql` | The original migration had a typo (#14); the new migration fixes it for fresh databases | Supabase |
 | Don't run the Playwright tests against the live database | `tests/global-setup.ts` deletes and inserts bookings and resets drivers | `.env` |
 
 | # | Date | Area | Change | Commit |
@@ -44,7 +44,7 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 
 ### What changed
 
-- A new migration, `20261030010000_fix_set_driver_pin_schema.sql`, replaces the function with `public.driver_pins`. It differs from the original in that one word only.
+- A new migration, `20261101010000_fix_set_driver_pin_schema.sql`, replaces the function with `public.driver_pins`. It differs from the original in that one word only.
 - The original migration file is left untouched, so the migration history stays the same.
 - On the live database, applying it is harmless: it re-creates the same function the live one presumably already is.
 
@@ -271,7 +271,7 @@ Every fare comes with a line-by-line breakdown.
 | File | What it is |
 | --- | --- |
 | `src/lib/pricing.ts` | The calculator and rate-card types. Used by the Pricing screen to preview unsaved rates. |
-| `supabase/migrations/20261030000000_rate_cards.sql` | **Not applied.** Adds `org_pricing.rate_card` and the same calculator in the database (`quote_fare_from_card`). `quote_fare()` keeps its name and inputs, so the apps keep working. |
+| `supabase/migrations/20261101000000_rate_cards.sql` | **Not applied.** Adds `org_pricing.rate_card` and the same calculator in the database (`quote_fare_from_card`). `quote_fare()` keeps its name and inputs, so the apps keep working. |
 | `src/lib/pricingCases.json` | 18 hand-checked fare cases both calculators must agree on. |
 | `scripts/check-rate-cards-sql.mjs` | Runs the migration in an in-memory Postgres (PGlite), with no connection to any real database. `npm run test:sql`. |
 

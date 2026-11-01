@@ -1,0 +1,29 @@
+name: Merge guard
+
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: https://example.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: ci-only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: git fetch --quiet origin main
+      - name: Order, migrations and commit authors
+        run: node scripts/merge-guard.mjs --no-fetch
+      - run: npm ci
+      - run: npx tsc --noEmit -p tsconfig.app.json
+      - run: npm test
+      - run: npm run build

@@ -5,7 +5,7 @@
 
 @layer base {
   :root {
-    --background: 216 45% 98%;
+    --background: 195 25% 97%;
     --foreground: 204 9% 11%;
 
     --card: 0 0% 100%;
@@ -14,14 +14,14 @@
     --popover: 0 0% 100%;
     --popover-foreground: 204 9% 11%;
 
-    --primary: 37 100% 26%;
+    --primary: 193 72% 21%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 221 22% 40%;
+    --secondary: 193 45% 30%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 216 11% 91%;
-    --muted-foreground: 31 23% 26%;
+    --muted: 195 18% 92%;
+    --muted-foreground: 200 14% 32%;
 
     --accent: 35 95% 57%;
     --accent-foreground: 37 100% 20%;
@@ -35,9 +35,9 @@
     --warning: 35 95% 57%;
     --warning-foreground: 37 100% 20%;
 
-    --border: 30 35% 76%;
-    --input: 30 35% 76%;
-    --ring: 37 100% 26%;
+    --border: 195 18% 85%;
+    --input: 195 18% 80%;
+    --ring: 193 72% 21%;
 
     --radius: 0.75rem;
 
@@ -50,9 +50,9 @@
     --sidebar-border: 216 20% 20%;
     --sidebar-ring: 35 95% 57%;
 
-    --gradient-accent: linear-gradient(135deg, #865300 0%, #f9a329 100%);
-    --shadow-card: 0 1px 3px 0 hsl(37 100% 26% / 0.06), 0 1px 2px -1px hsl(37 100% 26% / 0.06);
-    --shadow-elevated: 0 10px 25px -5px hsl(37 100% 26% / 0.1), 0 8px 10px -6px hsl(37 100% 26% / 0.08);
+    --gradient-accent: hsl(var(--primary));
+    --shadow-card: 0 1px 3px 0 hsl(193 40% 15% / 0.06), 0 1px 2px -1px hsl(193 40% 15% / 0.06);
+    --shadow-elevated: 0 10px 25px -5px hsl(193 40% 15% / 0.1), 0 8px 10px -6px hsl(193 40% 15% / 0.08);
   }
 
   .dark {
@@ -102,7 +102,7 @@
 
 @layer utilities {
   .kinetic-gradient {
-    background: linear-gradient(135deg, #865300 0%, #f9a329 100%);
+    background: hsl(var(--primary));
   }
   .glass-nav {
     background: rgba(255, 255, 255, 0.80);
@@ -116,4 +116,46 @@
 .leaflet-container {
   isolation: isolate;
   z-index: 0;
+}
+
+/* Customer screens only (home and booking). Everything is opt-in through cu-* classes, so admin,
+   driver and tracking screens keep their own radius and type. */
+.customer-ui {
+  --cu-radius: 24px;
+  --cu-page: 40 20% 97%;
+  background: hsl(var(--cu-page));
+  color: hsl(var(--foreground));
+}
+.dark .customer-ui { --cu-page: var(--background); }
+.customer-ui .cu-serif {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+.customer-ui .cu-card {
+  border-radius: var(--cu-radius);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border) / 0.6);
+}
+.customer-ui .cu-tint {
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--foreground));
+}
+.customer-ui .cu-pill { border-radius: 9999px; }
+.customer-ui .cu-icon-btn {
+  display: inline-flex;
+  height: 48px;
+  width: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .customer-ui, .customer-ui * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
