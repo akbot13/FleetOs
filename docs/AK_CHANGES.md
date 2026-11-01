@@ -2,7 +2,7 @@
 
 Every change made on the `Ak-changes` branch: what was wrong, what changed, and how it was checked. Newest first.
 
-- **Branch:** `Ak-changes` on the fork [akbot13/FleetOs](https://github.com/akbot13/FleetOs/tree/Ak-changes), made from `main` at `a522d2b` (27 Oct 2026).
+- **Branch:** `Ak-changes` on the fork [akbot13/FleetOs](https://github.com/akbot13/FleetOs/tree/Ak-changes), made from `main` at `a522d2b` (27 Oct 2026), and up to date with `main` at `d039a86` (1 Nov 2026, change #15).
 - **Live site:** https://fleetoss.vercel.app deploys only from `shivamjindal076-lab/FleetOs` `main`. Nothing here reaches it until a pull request is merged.
 
 ## Needs Shivam (things the code can't do)
@@ -31,6 +31,39 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 12 | 2026-10-30 | Code quality | All 57 lint errors cleared; driver last-updated and handover-save bugs fixed | `8334485` |
 | 13 | 2026-10-30 | CI | Lint, types, tests, SQL tests and build on every push | `808e4dc` |
 | 14 | 2026-10-30 | Database / drivers | Driver PIN typo fixed for new databases (migration not applied) | `3c8768e` |
+| 15 | 2026-11-01 | Upkeep | Merged Shivam's latest `main`; both migrations renumbered | `f78f5e4` |
+
+---
+
+## 15. Merged Shivam's latest main
+
+**Date:** 2026-11-01 · **Commit:** `f78f5e4` · **Status:** pushed to the fork.
+
+### The issue
+
+Shivam merged three pull requests into `main` (owner settings #6, a merge guard #7, and a customer booking redesign #8), so `Ak-changes` was 14 commits behind. His merge guard refuses branches that are behind `main`, and `20261030000000_rate_cards.sql` used the same version number as his `20261030000000_owner_settings.sql`.
+
+### What changed
+
+- Merged `main` at `d039a86` into `Ak-changes`. Seven files clashed; each keeps both sides:
+  - `package.json`: `test:sql` plus his `guard` and `prepare` scripts.
+  - `src/pages/Index.tsx`: lazy loading (#5) plus his `staffLinks`, `onOpenPricing` and `onBack`.
+  - `src/components/customer/TrackBooking.tsx`: Share my ride (#10) next to his Rate your ride and Call fleet buttons. It now uses the fleet's colour instead of a fixed WhatsApp green.
+  - `src/components/admin/AdminDashboard.tsx`: his `TripTypeIcon` change plus the `CashHandover` type (#12).
+  - `src/components/driver/DriverApp.tsx`: his `pickPayment(acceptedMethods, …)` plus the save checks (#2) and the shared odometer photo upload (#12). The "✓" in the photo toast is gone.
+  - `src/components/customer/BookingSummary.tsx`: his `saveCustomer()` call.
+  - `src/lib/olaMaps.ts`: his reverse geocoding plus the typed Leaflet interface (#12).
+- Renumbered both unapplied migrations after his newest (`20261031000000_org_cover_image.sql`):
+  - `20261030000000_rate_cards.sql` → `20261101000000_rate_cards.sql`
+  - `20261030010000_fix_set_driver_pin_schema.sql` → `20261101010000_fix_set_driver_pin_schema.sql`
+
+  References in `scripts/check-rate-cards-sql.mjs`, `RateCardEditor.tsx`, `pricing.ts` and this log were updated too. His migrations don't touch `quote_fare()` or `set_driver_pin()`, and he restored the original PIN migration unchanged, so the #14 fix is still needed.
+
+### How it was checked
+
+- `npm run guard`: passes ("Ready"), listing the two migrations in order.
+- Types (app and node): no errors. Unit tests: 129 passed in 17 files. `npm run test:sql`: all checks pass (18 shared cases, 1152 parity combinations, PIN fix). Lint: 0 errors, 12 warnings. Build: passes.
+- In the browser at phone width on the local server (live database, browsing only): Shivam's new home page loads with no console errors; pickup search shows suggestions for "Hawa Mahal"; the tracking preview shows Share my ride under his layout.
 
 ---
 
