@@ -84,7 +84,7 @@ describe('quoteFare', () => {
 
 describe('rateCardProblems', () => {
   it('accepts every default plan', () => {
-    for (const model of ['flat', 'distance', 'meter', 'hourly', 'package', 'per_day', 'outstation_km'] as const) {
+    for (const model of ['flat', 'distance', 'meter', 'hourly', 'package', 'per_day', 'outstation_km', 'day_km_limit'] as const) {
       expect(rateCardProblems(cardFrom({ plans: { city: defaultPlan(model) } }))).toEqual([]);
     }
   });

@@ -4,7 +4,7 @@
 -- in-memory Postgres (PGlite) against src/lib/pricingCases.json. Review before applying.
 --
 -- * org_pricing.rate_card holds the fleet's rate card (shape: RateCard in src/lib/pricing.ts).
---   Models per trip type: flat, distance, meter, hourly, package, per_day, outstation_km; plus
+--   Models per trip type: flat, distance, meter, hourly, package, per_day, outstation_km, day_km_limit; plus
 --   car-size multipliers, return multiplier, night halt, time and date surcharges (only the
 --   highest applies), waiting charges, tax and rounding.
 -- * A fleet with no rate card is priced from its old org_pricing columns exactly as before:
@@ -136,6 +136,10 @@ BEGIN
     v_fare := v_days * public.jnum(v_plan, 'per_day', 0);
   ELSIF v_model = 'outstation_km' THEN
     v_fare := greatest(v_km, public.jnum(v_plan, 'min_km_per_day', 0) * v_days) * public.jnum(v_plan, 'per_km', 0)
+      + v_days * public.jnum(v_plan, 'driver_allowance_per_day', 0);
+  ELSIF v_model = 'day_km_limit' THEN
+    v_fare := v_days * public.jnum(v_plan, 'per_day', 0)
+      + greatest(0, v_km - public.jnum(v_plan, 'km_per_day', 0) * v_days) * public.jnum(v_plan, 'extra_per_km', 0)
       + v_days * public.jnum(v_plan, 'driver_allowance_per_day', 0);
   ELSE
     RAISE EXCEPTION 'Unknown pricing model %', coalesce(v_model, '(none)');

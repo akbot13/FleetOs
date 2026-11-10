@@ -32,6 +32,33 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 13 | 2026-10-30 | CI | Lint, types, tests, SQL tests and build on every push | `808e4dc` |
 | 14 | 2026-10-30 | Database / drivers | Driver PIN typo fixed for new databases (migration not applied) | `3c8768e` |
 | 15 | 2026-11-01 | Upkeep | Merged Shivam's latest `main`; both migrations renumbered | `f78f5e4` |
+| 16 | 2026-11-10 | Pricing | New model: day rate with a km limit per day plus driver allowance (migration not applied) | (this commit) |
+
+---
+
+## 16. Day rate with a km limit
+
+**Date:** 2026-11-10 · **Status:** pushed to the fork. Changes migration `20261101000000_rate_cards.sql`, which is **not applied** and not on Shivam's `main`, so it was edited rather than adding a new file.
+
+### The issue
+
+Some fleets price long trips as a hybrid: a fixed rate per day that includes a set number of km each day (for example ₹2,500 a day with 250 km included), a rate for every km beyond that limit, and a fixed daily allowance for the driver. None of the seven models could express it. "Per km with daily minimum" (#6) is close but different: it charges every km and only sets a floor.
+
+### What changed
+
+- New pricing model, **Day rate with km limit**, with four amounts: per day, km included per day, extra km beyond the limit, and driver allowance per day.
+- Fare = days × day rate + max(0, km − days × km included) × extra per km + days × driver allowance. Night halt, car size, surcharges, waiting, tax and rounding then apply as for every other model.
+- Any trip type can use it: Outstation is the usual one, but a city full-day hire works too.
+- Added in both calculators: `src/lib/pricing.ts` (preview on the Pricing screen) and `quote_fare_from_card()` in the migration (what customers are charged).
+- The Rate card editor lists it, with the four fields. The note under the before/after table now says that, until bookings carry a distance, this model charges no extra km.
+
+Example: ₹2,500/day including 250 km, ₹14 per extra km, ₹400/day driver. A 2-day, 620 km trip is 2 × ₹2,500 + 120 km × ₹14 + 2 × ₹400 = **₹7,480**.
+
+### How it was checked
+
+- Three new shared cases in `src/lib/pricingCases.json` (within the limit: ₹5,800; extra km on a 6-seater: ₹9,724; a city ride: ₹2,280). `npm run test:sql` runs all 21 cases through the SQL calculator and they match; the 1,152 no-rate-card combinations still charge exactly what they did.
+- Types: no errors. Unit tests: 132 passed. Lint: 0 errors. Build: passes.
+- In the browser (local preview page, nothing saved): the model appears in the Outstation dropdown with the four fields, and the sample 2-day / 600 km trip goes from ₹6,400 to ₹7,200.
 
 ---
 

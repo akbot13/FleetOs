@@ -16,7 +16,7 @@ import {
   type FareModel, type FarePlan, type RateCard, type TripRequest, type TripType, type VehicleClass,
 } from '@/lib/pricing';
 
-const models: FareModel[] = ['flat', 'distance', 'meter', 'hourly', 'package', 'per_day', 'outstation_km'];
+const models: FareModel[] = ['flat', 'distance', 'meter', 'hourly', 'package', 'per_day', 'outstation_km', 'day_km_limit'];
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Labels for every number a plan can have, in the order they're shown.
@@ -46,6 +46,12 @@ const planFields: Record<FareModel, { key: string; label: string; step?: string 
   outstation_km: [
     { key: 'per_km', label: 'Per km (₹)', step: '0.5' },
     { key: 'min_km_per_day', label: 'Minimum km per day' },
+    { key: 'driver_allowance_per_day', label: 'Driver allowance per day (₹)' },
+  ],
+  day_km_limit: [
+    { key: 'per_day', label: 'Per day (₹)' },
+    { key: 'km_per_day', label: 'Km included per day' },
+    { key: 'extra_per_km', label: 'Extra km beyond limit (₹)', step: '0.5' },
     { key: 'driver_allowance_per_day', label: 'Driver allowance per day (₹)' },
   ],
 };
@@ -446,8 +452,8 @@ export function RateCardEditor() {
           </table>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Customer bookings don't carry a distance yet, so distance, meter and per-km plans charge their minimum for them
-          until the app measures trips.
+          Customer bookings don't carry a distance yet, so distance, meter and per-km plans charge their minimum for them,
+          and day rates with a km limit charge no extra km, until the app measures trips.
         </p>
       </Card>
     </div>

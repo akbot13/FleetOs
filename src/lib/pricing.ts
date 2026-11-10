@@ -34,7 +34,10 @@ export type FarePlan =
   | { model: 'per_day'; per_day: number }
   // Outstation by distance: a rate per km, never fewer than min_km_per_day for each day, plus
   // the driver's daily allowance.
-  | { model: 'outstation_km'; per_km: number; min_km_per_day: number; driver_allowance_per_day: number };
+  | { model: 'outstation_km'; per_km: number; min_km_per_day: number; driver_allowance_per_day: number }
+  // A rate per day that covers up to km_per_day for each day, then a rate per km beyond that, plus
+  // the driver's daily allowance.
+  | { model: 'day_km_limit'; per_day: number; km_per_day: number; extra_per_km: number; driver_allowance_per_day: number };
 
 export type FareModel = FarePlan['model'];
 
@@ -162,6 +165,7 @@ export function defaultPlan(model: FareModel): FarePlan {
     };
     case 'per_day': return { model, per_day: 3200 };
     case 'outstation_km': return { model, per_km: 12, min_km_per_day: 250, driver_allowance_per_day: 400 };
+    case 'day_km_limit': return { model, per_day: 2500, km_per_day: 250, extra_per_km: 14, driver_allowance_per_day: 400 };
   }
 }
 
@@ -191,7 +195,7 @@ function tripMeasures(trip: TripRequest) {
 
 function planFare(plan: FarePlan, trip: TripRequest, lines: FareLine[], missing: Set<'distance' | 'duration'>) {
   const { hours, days, km: rawKm, minutes: rawMinutes } = tripMeasures(trip);
-  const needsKm = plan.model === 'distance' || plan.model === 'meter' || plan.model === 'outstation_km';
+  const needsKm = plan.model === 'distance' || plan.model === 'meter' || plan.model === 'outstation_km' || plan.model === 'day_km_limit';
   if (needsKm && rawKm == null) missing.add('distance');
   if (plan.model === 'meter' && rawMinutes == null) missing.add('duration');
   const km = rawKm ?? 0;
@@ -255,6 +259,20 @@ function planFare(plan: FarePlan, trip: TripRequest, lines: FareLine[], missing:
         lines.push({ label: `Driver allowance, ${days} day${days > 1 ? 's' : ''}`, amount: money(days * plan.driver_allowance_per_day) });
       }
       return billedKm * plan.per_km + days * plan.driver_allowance_per_day;
+    }
+
+    case 'day_km_limit': {
+      const includedKm = plan.km_per_day * days;
+      const extraKm = Math.max(0, km - includedKm);
+      lines.push({
+        label: `${days} day${days > 1 ? 's' : ''} × ₹${plan.per_day} (${money(includedKm)} km included)`,
+        amount: money(days * plan.per_day),
+      });
+      if (extraKm > 0) lines.push({ label: `${money(extraKm)} extra km × ₹${plan.extra_per_km}`, amount: money(extraKm * plan.extra_per_km) });
+      if (plan.driver_allowance_per_day > 0) {
+        lines.push({ label: `Driver allowance, ${days} day${days > 1 ? 's' : ''}`, amount: money(days * plan.driver_allowance_per_day) });
+      }
+      return days * plan.per_day + extraKm * plan.extra_per_km + days * plan.driver_allowance_per_day;
     }
   }
 }
@@ -372,6 +390,7 @@ export const fareModelLabel: Record<FareModel, string> = {
   package: 'Rental packages',
   per_day: 'Per day',
   outstation_km: 'Per km with daily minimum',
+  day_km_limit: 'Day rate with km limit',
 };
 
 export const fareModelHint: Record<FareModel, string> = {
@@ -382,4 +401,5 @@ export const fareModelHint: Record<FareModel, string> = {
   package: 'Fixed packages such as 4 hr / 40 km. Longer trips pay extra per hour and per km.',
   per_day: 'A rate per day of the trip.',
   outstation_km: 'A rate per km, charging at least the daily minimum km, plus a driver allowance per day.',
+  day_km_limit: 'A rate per day that includes a set number of km each day. Km beyond the limit cost extra, plus a driver allowance per day.',
 };
