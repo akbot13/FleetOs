@@ -32,13 +32,13 @@ Every change made on the `Ak-changes` branch: what was wrong, what changed, and 
 | 13 | 2026-10-30 | CI | Lint, types, tests, SQL tests and build on every push | `808e4dc` |
 | 14 | 2026-10-30 | Database / drivers | Driver PIN typo fixed for new databases (migration not applied) | `3c8768e` |
 | 15 | 2026-11-01 | Upkeep | Merged Shivam's latest `main`; both migrations renumbered | `f78f5e4` |
-| 16 | 2026-11-10 | Pricing | New model: day rate with a km limit per day plus driver allowance (migration not applied) | (this commit) |
+| 16 | 2026-11-10 | Pricing | New model: day rate with a km limit per day plus driver allowance (migration not applied) | `04035d2` |
 
 ---
 
 ## 16. Day rate with a km limit
 
-**Date:** 2026-11-10 · **Status:** pushed to the fork. Changes migration `20261101000000_rate_cards.sql`, which is **not applied** and not on Shivam's `main`, so it was edited rather than adding a new file.
+**Date:** 2026-11-10 · **Commit:** `04035d2` · **Status:** pushed to the fork. Changes migration `20261101000000_rate_cards.sql`, which is **not applied** and not on Shivam's `main`, so it was edited rather than adding a new file.
 
 ### The issue
 
